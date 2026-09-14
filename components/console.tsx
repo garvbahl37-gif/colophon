@@ -215,13 +215,41 @@ export function Console() {
         </button>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      {/* `relative` is load-bearing: the two rails become absolute overlays on
+          narrow viewports, and without a positioned ancestor they resolve
+          against the page instead of this row — sliding over the masthead and
+          pushing the conversation under whichever rail is open. */}
+      <div className="relative flex min-h-0 flex-1">
+        {/* Below xl the conversation and both rails cannot all fit, so a rail
+            opens over the conversation. A drawer without a scrim reads as a
+            layout fault rather than a choice — the text simply disappears
+            under something. The scrim says the panel is temporary and gives
+            the obvious way out. */}
+        {(showRail || showInstrument) && (
+          <button
+            type="button"
+            aria-label="Close panel"
+            onClick={() => {
+              setShowRail(false);
+              setShowInstrument(false);
+            }}
+            className={cn(
+              "absolute inset-0 z-10 cursor-default bg-fg/15 backdrop-blur-[1px]",
+              // Disappears at whichever width the open panel rejoins the
+              // layout, so a scrim never dims a panel that is simply a column.
+              showInstrument ? "xl:hidden" : "lg:hidden",
+            )}
+          />
+        )}
         {/* ── Sources rail ───────────────────────────────────────────────── */}
         <aside
           className={cn(
             "w-[300px] shrink-0 border-r border-line bg-bg",
+            // Overlay only where it is not already in flow. Going absolute at a
+            // width that has room for it drops 300px out of the layout and the
+            // conversation lurches sideways to fill the gap.
             showRail
-              ? "absolute inset-y-14 left-0 z-20 bg-bg shadow-2xl"
+              ? "absolute inset-y-0 left-0 z-20 max-w-[85vw] shadow-2xl lg:static lg:z-auto lg:max-w-none lg:shadow-none"
               : "hidden lg:block",
           )}
         >
@@ -363,8 +391,12 @@ export function Console() {
         <aside
           className={cn(
             "w-[380px] shrink-0 border-l border-line bg-bg",
+            // Same rule, and it matters more here: clicking a citation opens
+            // this panel at any width, so on a wide screen the old version
+            // turned an in-flow column into an overlay mid-read and shifted
+            // the whole conversation under it.
             showInstrument
-              ? "absolute inset-y-14 right-0 z-20 bg-bg shadow-2xl"
+              ? "absolute inset-y-0 right-0 z-20 max-w-[92vw] shadow-2xl xl:static xl:z-auto xl:max-w-none xl:shadow-none"
               : "hidden xl:block",
           )}
         >

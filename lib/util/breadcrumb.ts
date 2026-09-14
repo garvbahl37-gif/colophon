@@ -1,3 +1,5 @@
+import { plainText } from "./plain-text";
+
 /**
  * Builds the "Document > Section > Subsection" trail shown in citations and
  * prepended to indexed text.
@@ -7,7 +9,7 @@
  * every citation and in every embedded chunk.
  */
 export function breadcrumb(title: string, headingPath: string[], separator = " > "): string {
-  const parts = [title, ...headingPath].filter(Boolean);
+  const parts = [title, ...headingPath].map(plainText).filter(Boolean);
   return parts
     .filter((part, i) => i === 0 || part.trim().toLowerCase() !== parts[i - 1].trim().toLowerCase())
     .join(separator);

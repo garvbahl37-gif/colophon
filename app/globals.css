@@ -466,6 +466,89 @@ input[type="checkbox"] {
     padding-left: 1rem;
     color: var(--color-fg-2);
   }
+  /* ── Passage excerpts ────────────────────────────────────────────────
+     Evidence, not prose. A retrieved chunk is a fragment of someone else's
+     document, so it is set tighter and quieter than an answer: the panel has
+     to stay scannable at a glance while still reading as real text rather
+     than as a dump of Markdown source.
+
+     Headings inside a chunk are section markers, not titles, so they are set
+     as small labels instead of display type -- an <h1> mid-panel at full size
+     would shout louder than the answer it is evidence for.
+  */
+
+  .prose-excerpt {
+    font-size: var(--text-small);
+    line-height: 1.62;
+    color: var(--color-fg-2);
+  }
+  .prose-excerpt > * + * { margin-top: 0.7em; }
+  .prose-excerpt h1,
+  .prose-excerpt h2,
+  .prose-excerpt h3,
+  .prose-excerpt h4,
+  .prose-excerpt h5,
+  .prose-excerpt h6 {
+    font-size: var(--text-micro);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-fg-3);
+    margin-top: 1.2em;
+  }
+  .prose-excerpt strong { font-weight: 700; color: var(--color-fg); }
+  .prose-excerpt em { font-style: italic; }
+  .prose-excerpt ul, .prose-excerpt ol { padding-left: 1.15rem; }
+  .prose-excerpt ul { list-style: square; }
+  .prose-excerpt ol { list-style: decimal; }
+  .prose-excerpt li::marker { color: var(--color-line-lit); }
+  .prose-excerpt li + li { margin-top: 0.25em; }
+  .prose-excerpt code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--color-bg);
+    border: 1px solid var(--color-line);
+    padding: 0.05em 0.3em;
+  }
+  .prose-excerpt pre {
+    background: var(--color-bg);
+    border: 1px solid var(--color-line);
+    padding: 0.7rem 0.85rem;
+    overflow-x: auto;
+    font-size: var(--text-micro);
+    line-height: 1.55;
+  }
+  .prose-excerpt pre code { background: none; border: 0; padding: 0; }
+  .prose-excerpt blockquote {
+    border-left: 2px solid var(--color-line-lit);
+    padding-left: 0.8rem;
+    color: var(--color-fg-3);
+  }
+  .prose-excerpt table { width: 100%; font-size: var(--text-micro); }
+  .prose-excerpt th, .prose-excerpt td {
+    border: 1px solid var(--color-line);
+    padding: 0.3rem 0.45rem;
+    text-align: left;
+  }
+  .prose-excerpt th { font-weight: 700; color: var(--color-fg); }
+
+  /* A link's text is the evidence; its URL is noise, and it came from an
+     ingested document, so it is rendered as text rather than as something
+     clickable. */
+  .prose-excerpt .cite-link {
+    color: var(--color-fg);
+    border-bottom: 1px solid var(--color-line-lit);
+  }
+
+  /* The excerpt scrolls; a hard cut mid-sentence reads like a rendering bug,
+     so the last line fades instead. */
+  .excerpt-scroll {
+    max-height: 17rem;
+    overflow-y: auto;
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6rem), transparent 100%);
+  }
+  .excerpt-scroll:not([data-overflowing="true"]) { mask-image: none; }
+
   .prose-colophon table {
     width: 100%;
     border-collapse: collapse;

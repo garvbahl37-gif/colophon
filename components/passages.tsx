@@ -1,9 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/util/cn";
 import { breadcrumb } from "@/lib/util/breadcrumb";
+import { plainText } from "@/lib/util/plain-text";
 import type { RetrievalRound, RetrievedPassage } from "@/lib/ai/types";
+
+/**
+ * A retrieved chunk, set as text rather than printed as Markdown source.
+ *
+ * Chunks are stored verbatim, which is correct — the citation has to be what
+ * the document actually says. But verbatim source is not readable: a passage
+ * from a web page arrives full of `**bold**`, escaped `3\.` list numbers, and
+ * link syntax carrying a URL and a title attribute, which together bury the
+ * sentence the reader is trying to check. Rendering it here changes nothing
+ * about what was retrieved or cited, only what the eye has to wade through.
+ *
+ * Links are rendered as their text. The URL is noise in a panel this size, and
+ * it arrived from an ingested document, so turning it into something clickable
+ * would let any indexed page place a live link inside the interface. Images are
+ * dropped for the same reason, and because a chunk is prose, not a figure.
+ */
+function Excerpt({ text }: { text: string }) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
+
+  // The bottom fade is a lie when everything already fits, so only wear it
+  // when there is genuinely more text below the fold.
+  useEffect(() => {
+    const node = scroller.current;
+    if (!node) return;
+    setOverflowing(node.scrollHeight > node.clientHeight + 2);
+  }, [text]);
+
+  return (
+    <div ref={scroller} className="excerpt-scroll" data-overflowing={overflowing}>
+      <div className="prose-excerpt">
+        <Markdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ children }) => <span className="cite-link">{children}</span>,
+            img: () => null,
+          }}
+        >
+          {text}
+        </Markdown>
+      </div>
+    </div>
+  );
+}
 
 /**
  * The passage meter.
@@ -38,7 +85,8 @@ export function PassageMeter({
   // Lead with the section. Every passage in a result set usually shares the
   // same document, so the title is the part that carries no information and
   // the heading is the part that gets truncated away if the title goes first.
-  const section = passage.headingPath.at(-1) ?? passage.documentTitle;
+  const title = plainText(passage.documentTitle);
+  const section = plainText(passage.headingPath.at(-1) ?? "") || title;
   const where = breadcrumb(passage.documentTitle, passage.headingPath, " › ");
 
   return (
@@ -56,9 +104,7 @@ export function PassageMeter({
           <span className="mono shrink-0 text-micro text-brand-3">[{passage.marker}]</span>
           <span className="min-w-0 flex-1 truncate text-small text-fg-2" title={where}>
             {section}
-            {section !== passage.documentTitle && (
-              <span className="text-fg-3"> · {passage.documentTitle}</span>
-            )}
+            {section !== title && <span className="text-fg-3"> · {title}</span>}
           </span>
           {rerank != null && (
             <span className="mono shrink-0 text-micro text-fg">{rerank.toFixed(3)}</span>
@@ -90,15 +136,33 @@ export function PassageMeter({
         </div>
       </button>
 
+      {/* The excerpt. Two stacked pieces of evidence, labelled, because the
+          written context and the document's own words are different kinds of
+          claim and running them together hides which is which.
+
+          `border-line`, not the `border-white/6` this carried from the dark
+          palette — on the light ground that rule was invisible, so the panel
+          appeared to bleed into the row above it. */}
       {open && (
-        <div className="border-t border-white/6 bg-bg-2 px-4 py-3">
+        <div className="border-t border-line bg-bg-2 px-4 py-3.5">
           {passage.context && (
-            <p className="mb-2 border-l-2 border-jade/40 pl-2 text-micro leading-relaxed text-fg-3">
-              {passage.context}
-            </p>
+            <div className="mb-3.5">
+              <p className="label mb-1.5 text-fg-3">Written context</p>
+              <p className="border-l-2 border-brand/50 pl-2.5 text-micro leading-relaxed text-fg-2">
+                {passage.context}
+              </p>
+            </div>
           )}
-          <p className="max-h-64 overflow-y-auto whitespace-pre-wrap text-small leading-relaxed text-fg-2">
-            {passage.snippet}
+
+          <p className="label mb-1.5 text-fg-3">Passage</p>
+          <Excerpt text={passage.snippet} />
+
+          <p
+            className="mono mt-3 truncate border-t border-hairline pt-2.5 text-micro text-fg-3"
+            title={where}
+          >
+            {where}
+            {passage.page != null && ` · p.${passage.page}`}
           </p>
         </div>
       )}

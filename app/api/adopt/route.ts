@@ -13,6 +13,12 @@ import { currentOwner } from "@/lib/util/owner";
  * matches, so the endpoint existing is not itself a way to seize the corpus.
  * Remove the variable once the claim is made; the route then answers 404 to
  * everyone, including whoever knew the key.
+ *
+ * The key arrives in the request body, never in the URL. A query string is
+ * written to the platform's access log, the browser's history and every proxy
+ * in between, so a one-time secret placed there outlives its one use in at
+ * least three logs. The /adopt page carries it in the URL fragment, which is
+ * never transmitted, and posts it from the browser instead.
  */
 
 /** Constant-time compare so the key cannot be found one byte at a time. */
@@ -23,9 +29,15 @@ function matches(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export async function GET(req: Request) {
+export async function POST(req: Request) {
   const expected = process.env.COLOPHON_ADOPT_KEY;
-  const supplied = new URL(req.url).searchParams.get("key") ?? "";
+
+  let supplied = "";
+  try {
+    supplied = ((await req.json()) as { key?: string }).key ?? "";
+  } catch {
+    supplied = "";
+  }
 
   // Indistinguishable from a route that does not exist: an unconfigured
   // instance and a wrong key answer identically.

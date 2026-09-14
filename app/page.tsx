@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { IngestFlow } from "@/components/ingest-flow";
+import { LandingIntro } from "@/components/landing-intro";
 import { Masthead } from "@/components/masthead";
 import { PipelineFlow } from "@/components/pipeline-flow";
 import { RetrievalAnimation } from "@/components/retrieval-animation";
@@ -7,6 +9,7 @@ import { ProductMock } from "@/components/product-mock";
 export default function Landing() {
   return (
     <div className="min-h-dvh">
+      <LandingIntro />
       <Masthead />
 
       {/* ── 00 Hero ───────────────────────────────────────────────────────────
@@ -66,8 +69,30 @@ export default function Landing() {
         </div>
       </Section>
 
-      {/* ── 02 Hybrid ───────────────────────────────────────────────────────── */}
-      <Section id="hybrid" no="02" title="Watch eight passages get reordered.">
+      {/* ── 02 Ingestion ────────────────────────────────────────────────────── */}
+      <Section id="ingest" no="02" title="How a document becomes searchable.">
+        <div className="grid12">
+          <div className="col-span-6 md:col-span-4">
+            <p className="text-lead leading-relaxed text-fg-2">
+              Retrieval quality is mostly decided before anyone asks a question.
+              These five stages run once per document, and the third is the one
+              that changes the most.
+            </p>
+            <p className="mt-5 max-w-[42ch] text-small leading-relaxed text-fg-2">
+              Watch the same passage through all five. It starts as a sentence
+              that means nothing on its own and ends as something a question can
+              actually find.
+            </p>
+          </div>
+
+          <div className="col-span-6 mt-10 md:col-span-8 md:mt-0">
+            <IngestFlow />
+          </div>
+        </div>
+      </Section>
+
+      {/* ── 03 Hybrid ───────────────────────────────────────────────────────── */}
+      <Section id="hybrid" no="03" title="Watch eight passages get reordered.">
         <div className="grid12">
           <div className="col-span-6 md:col-span-4">
             <p className="text-lead leading-relaxed text-fg-2">
@@ -91,8 +116,8 @@ export default function Landing() {
         </div>
       </Section>
 
-      {/* ── 03 Pipeline ─────────────────────────────────────────────────────── */}
-      <Section id="pipeline" no="03" title="Seven stages, and you watch each one run.">
+      {/* ── 04 Pipeline ─────────────────────────────────────────────────────── */}
+      <Section id="pipeline" no="04" title="Seven stages, and you watch each one run.">
         <p className="max-w-[52ch] text-lead leading-relaxed text-fg-2">
           Every answer carries its own trace: what each stage did, how long it took, and the real
           numbers it produced. A disappointing answer becomes diagnosable instead of mysterious.
@@ -113,8 +138,8 @@ export default function Landing() {
         </ol>
       </Section>
 
-      {/* ── 04 Agent ────────────────────────────────────────────────────────── */}
-      <Section id="agent" no="04" title="The model runs its own searches.">
+      {/* ── 05 Agent ────────────────────────────────────────────────────────── */}
+      <Section id="agent" no="05" title="The model runs its own searches.">
         <div className="grid12">
           <div className="col-span-6 md:col-span-5">
             <p className="text-lead leading-relaxed text-fg-2">
@@ -145,8 +170,8 @@ export default function Landing() {
         </div>
       </Section>
 
-      {/* ── 05 Architecture ─────────────────────────────────────────────────── */}
-      <Section id="stack" no="05" title="Every stage picks its own model.">
+      {/* ── 06 Architecture ─────────────────────────────────────────────────── */}
+      <Section id="stack" no="06" title="Every stage picks its own model.">
         <p className="max-w-[54ch] text-lead leading-relaxed text-fg-2">
           No provider is best at all four jobs, and some cannot do all four at all. Each stage names
           its backend in one environment variable — so retrieval runs locally on CPU while

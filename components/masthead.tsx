@@ -16,7 +16,8 @@ import { useEffect, useState } from "react";
  */
 
 const SECTIONS = [
-  { id: "hybrid", label: "Hybrid" },
+  { id: "ingest", label: "Ingest" },
+  { id: "hybrid", label: "Retrieve" },
   { id: "pipeline", label: "Pipeline" },
   { id: "agent", label: "Agent" },
   { id: "stack", label: "Architecture" },

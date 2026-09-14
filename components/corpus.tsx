@@ -24,6 +24,30 @@ export interface CorpusStats {
 
 const BUSY = new Set(["parsing", "chunking", "contextualizing", "embedding", "indexing", "queued"]);
 
+/*
+  The deployed instance is public, so ingestion and deletion sit behind a
+  shared secret — otherwise a stranger with the URL can spend the API key
+  behind it or empty the corpus.
+
+  The secret cannot live in the bundle, because anything shipped to the browser
+  is public by definition. So the reader pastes it once and it stays in this
+  browser. That is the right shape for a single-operator tool: no accounts to
+  build, and the expensive endpoints are genuinely closed.
+*/
+const TOKEN_KEY = "colophon.writeToken";
+
+function readToken(): string {
+  try {
+    return localStorage.getItem(TOKEN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeHeaders(token: string): HeadersInit {
+  return token ? { "x-colophon-token": token } : {};
+}
+
 /** Human-readable name for each ingest stage, in the interface's own voice. */
 const STAGE_COPY: Record<string, string> = {
   queued: "Waiting",
@@ -85,7 +109,21 @@ export function CorpusRail({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [url, setUrl] = useState("");
+  const [token, setToken] = useState("");
+  const [locked, setLocked] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => setToken(readToken()), []);
+
+  function saveToken(next: string) {
+    setToken(next);
+    try {
+      localStorage.setItem(TOKEN_KEY, next);
+    } catch {
+      /* private browsing: it simply will not persist */
+    }
+    if (next) setLocked(false);
+  }
 
   async function upload(files: FileList | File[]) {
     const list = [...files];
@@ -95,9 +133,16 @@ export function CorpusRail({
     const form = new FormData();
     for (const f of list) form.append("files", f);
     try {
-      const res = await fetch("/api/ingest", { method: "POST", body: form });
+      const res = await fetch("/api/ingest", {
+        method: "POST",
+        body: form,
+        headers: writeHeaders(token),
+      });
       const data = await res.json();
-      if (data.error) setMessage(data.error);
+      if (res.status === 401 || res.status === 503) {
+        setLocked(true);
+        setMessage(data.error);
+      } else if (data.error) setMessage(data.error);
       else {
         const dupes = (data.results ?? []).filter((r: { duplicate?: boolean }) => r.duplicate).length;
         if (dupes) setMessage(`${dupes} already indexed, skipped`);
@@ -118,11 +163,14 @@ export function CorpusRail({
     try {
       const res = await fetch("/api/ingest", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...writeHeaders(token) },
         body: JSON.stringify({ url: target }),
       });
       const data = await res.json();
-      if (data.error) setMessage(data.error);
+      if (res.status === 401 || res.status === 503) {
+        setLocked(true);
+        setMessage(data.error);
+      } else if (data.error) setMessage(data.error);
       else setUrl("");
     } catch (e) {
       setMessage((e as Error).message);
@@ -133,7 +181,15 @@ export function CorpusRail({
   }
 
   async function remove(id: string) {
-    await fetch(`/api/documents?id=${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/documents?id=${id}`, {
+      method: "DELETE",
+      headers: writeHeaders(token),
+    });
+    if (res.status === 401 || res.status === 503) {
+      setLocked(true);
+      setMessage("Paste the write token to delete documents.");
+      return;
+    }
     const next = new Set(scope);
     next.delete(id);
     onScopeChange(next);
@@ -217,6 +273,22 @@ export function CorpusRail({
           Add
         </button>
       </div>
+
+      {locked && (
+        <div className="mx-4 mt-3 border border-brand/40 bg-brand/5 p-3">
+          <p className="text-small text-fg">This instance is write-protected.</p>
+          <p className="mt-1 text-micro leading-snug text-fg-2">
+            Paste the write token to add or remove documents. It stays in this browser.
+          </p>
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => saveToken(e.target.value)}
+            placeholder="COLOPHON_WRITE_TOKEN"
+            className="mt-2 h-8 w-full border border-line bg-card px-3 text-small text-fg placeholder:text-fg-3 focus:border-fg focus:outline-none"
+          />
+        </div>
+      )}
 
       {(message || error) && (
         <p className="mx-4 mt-3 border border-alert/40 bg-alert/5 px-3 py-2 text-small text-alert">

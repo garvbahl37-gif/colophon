@@ -3,6 +3,7 @@ import mammoth from "mammoth";
 import * as cheerio from "cheerio";
 import TurndownService from "turndown";
 import matter from "gray-matter";
+import { safeFetch } from "@/lib/util/safe-fetch";
 
 export type SourceType = "pdf" | "docx" | "markdown" | "text" | "html" | "url";
 
@@ -43,13 +44,40 @@ async function loadPdf(buffer: Buffer, filename: string): Promise<LoadedDocument
     offset += cleaned.length + 2;
   }
 
+  const text = parts.join("\n\n");
+
   return {
-    title: titleFrom(filename, ""),
+    title: pdfTitle(pdf, text, filename),
     sourceType: "pdf",
-    text: parts.join("\n\n"),
+    text,
     pageBreaks,
     metadata: { pages: totalPages },
   };
+}
+
+/**
+ * Names a PDF from its own contents rather than its filename.
+ *
+ * Exports and downloads are routinely named with a UUID or `document(3)`, and
+ * that string then becomes the document title, the citation breadcrumb, and
+ * part of every embedded chunk — so a meaningless filename degrades retrieval,
+ * not just the sidebar. The embedded Title metadata is preferred, then the
+ * first line that actually looks like a heading, and only then the filename.
+ */
+function pdfTitle(pdf: unknown, text: string, filename: string): string {
+  const meta = (pdf as { _pdfInfo?: { Title?: string } })?._pdfInfo?.Title?.trim();
+  if (meta && meta.length > 3 && meta.length < 120) return meta;
+
+  const firstLine = text
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l.length > 8 && l.length < 120 && /[a-z]/i.test(l));
+  if (firstLine) return firstLine.replace(/^#+\s*/, "");
+
+  // A filename that is just a UUID or hex blob tells the reader nothing.
+  const stem = filename.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim();
+  if (/^[0-9a-f\s-]{16,}$/i.test(stem)) return "Untitled PDF";
+  return stem || "Untitled PDF";
 }
 
 /**
@@ -123,25 +151,22 @@ export async function loadFile(
 }
 
 export async function loadUrl(url: string): Promise<LoadedDocument> {
-  const res = await fetch(url, {
-    headers: { "user-agent": "ColophonRAG/1.0 (+document ingestion)" },
-    redirect: "follow",
-  });
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
-
-  const contentType = res.headers.get("content-type") ?? "";
-  const filename = new URL(url).pathname.split("/").pop() || new URL(url).hostname;
+  // safeFetch, not fetch: this address comes from whoever called the API, and
+  // the body ends up readable through the chat endpoint. See lib/util/safe-fetch.
+  const { body, contentType, finalUrl } = await safeFetch(url);
+  const filename = new URL(finalUrl).pathname.split("/").pop() || new URL(finalUrl).hostname;
 
   if (contentType.includes("application/pdf")) {
-    const doc = await loadPdf(Buffer.from(await res.arrayBuffer()), filename);
-    return { ...doc, sourceType: "url", metadata: { ...doc.metadata, url } };
+    const doc = await loadPdf(body, filename);
+    return { ...doc, sourceType: "url", metadata: { ...doc.metadata, url: finalUrl } };
   }
-  const body = await res.text();
-  if (contentType.includes("text/html")) return loadHtml(body, filename, url);
+
+  const text = body.toString("utf8");
+  if (contentType.includes("text/html")) return loadHtml(text, filename, finalUrl);
   return {
     title: filename,
     sourceType: "url",
-    text: body,
-    metadata: { url },
+    text,
+    metadata: { url: finalUrl },
   };
 }

@@ -1,6 +1,7 @@
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { assertGatewayKey } from "@/lib/ai/models";
 import { databaseHint } from "@/lib/db/client";
+import { assertWithinRate, guardResponse } from "@/lib/util/guard";
 import type { ColophonMode, ColophonUIMessage } from "@/lib/ai/types";
 import { runColophon } from "@/lib/retrieval/orchestrator";
 
@@ -21,7 +22,39 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  try {
+    assertWithinRate(req, 20, "chat");
+  } catch (error) {
+    const refused = guardResponse(error);
+    if (refused) return refused;
+    throw error;
+  }
+
   const { messages = [], mode = "agent", documentIds = null } = body;
+
+  /*
+    The caller supplies the whole conversation, so it is untrusted input, not
+    just state we handed them. Without a ceiling this is an open LLM proxy
+    billed to our key.
+  */
+  if (messages.length > 40) {
+    return Response.json({ error: "Conversation is too long" }, { status: 413 });
+  }
+  const totalChars = messages.reduce(
+    (n, m) =>
+      n +
+      (m.parts ?? []).reduce(
+        (c, p) => c + (p.type === "text" ? (p as { text: string }).text.length : 0),
+        0,
+      ),
+    0,
+  );
+  if (totalChars > 60_000) {
+    return Response.json({ error: "Conversation is too large" }, { status: 413 });
+  }
+  if (messages.at(-1)?.role !== "user") {
+    return Response.json({ error: "The last message must be from the user" }, { status: 400 });
+  }
   const last = messages.at(-1);
   const question =
     last?.parts

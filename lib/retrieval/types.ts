@@ -57,8 +57,15 @@ export interface QueryPlan {
   standalone: string;
   /** Independent retrievals to run. One entry for a simple question. */
   subQueries: string[];
-  /** A fabricated ideal answer, embedded instead of the question (HyDE). */
-  hypothetical: string | null;
+  /**
+   * One fabricated ideal answer per sub-query, index-aligned with `subQueries`.
+   *
+   * A single hypothetical shared across sub-queries makes decomposition a
+   * no-op for the dense arm: every sub-query embeds the same vector, returns
+   * the same rows, and cross-query RRF then doubles their score — actively
+   * amplifying whichever side the one hypothetical leaned toward.
+   */
+  hypotheticals: string[];
   /** Rare identifiers worth forcing into the lexical arm. */
   keywords: string[];
   /** False for greetings and meta-questions, which skip retrieval entirely. */

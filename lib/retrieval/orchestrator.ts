@@ -398,7 +398,7 @@ async function runPipeline(args: {
           intent: p.intent,
           "sub-queries": p.subQueries.length,
           keywords: p.keywords.length,
-          hyde: p.hypothetical ? "yes" : "no",
+          hyde: p.hypotheticals.filter(Boolean).length,
         },
       });
       writer.write({ type: "data-plan", data: p });
@@ -430,7 +430,7 @@ async function runPipeline(args: {
 
     const fused = await trace.span("retrieve", label, async (update) => {
       const rounds = await Promise.all(
-        searchQueries.map(async (subQuery) => {
+        searchQueries.map(async (subQuery, qi) => {
           const roundId = nanoid(6);
           writer.write({
             type: "data-retrieval",
@@ -444,10 +444,13 @@ async function runPipeline(args: {
             },
           });
 
-          // HyDE only helps the dense arm. The lexical arm keeps the literal
+          // HyDE only helps the dense arm; the lexical arm keeps the literal
           // question, because a fabricated passage dilutes exact-term matching.
-          const vectorText =
-            hop === 0 && plan.hypothetical ? plan.hypothetical : subQuery;
+          // Each sub-query uses its OWN hypothetical — sharing one across all
+          // of them collapses decomposition back to a single dense query, and
+          // cross-query RRF then doubles the identical rows it returns.
+          const hyde = hop === 0 ? (plan.hypotheticals[qi] ?? "") : "";
+          const vectorText = hyde || subQuery;
           const embedding = await embedQuery(vectorText);
           const candidates = await hybridSearch({
             embedding,
@@ -522,7 +525,15 @@ async function runPipeline(args: {
       });
     }
 
-    selected = reranked;
+    /*
+      Accumulate across hops rather than replacing.
+
+      The grader fires precisely when PART of the answer is missing, so hop 2
+      searches for the missing half. Overwriting `selected` then throws away
+      the half hop 1 had already found, turning a partial answer into a
+      different partial answer. Union the pools and let the reranker choose.
+    */
+    selected = hop === 0 ? reranked : dedupeById([...selected, ...reranked]);
 
     if (hop === config.retrieval.maxHops - 1) break;
 
@@ -589,6 +600,16 @@ async function runPipeline(args: {
     });
     return text;
   });
+}
+
+/** Keeps the highest-scoring instance of each chunk across hops. */
+function dedupeById(candidates: Candidate[]): Candidate[] {
+  const best = new Map<string, Candidate>();
+  for (const c of candidates) {
+    const seen = best.get(c.id);
+    if (!seen || (c.rerankScore ?? 0) > (seen.rerankScore ?? 0)) best.set(c.id, c);
+  }
+  return [...best.values()].sort((a, b) => (b.rerankScore ?? 0) - (a.rerankScore ?? 0));
 }
 
 function truncate(s: string, n: number) {

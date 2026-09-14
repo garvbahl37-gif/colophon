@@ -108,9 +108,25 @@ async function runHosted(query: string, documents: string[], topN: number): Prom
   return ranking.map((r) => ({ originalIndex: r.originalIndex, score: r.score }));
 }
 
+/*
+  Cross-encoders have a 512-token window shared between query and passage —
+  roughly 1400 characters once the query, breadcrumb and situating line are
+  accounted for. Feeding 6000 characters meant the tokeniser silently dropped
+  the tail of every chunk, so a passage whose answering sentence sat in its
+  second half was scored on its first half alone. That is the worst place in
+  the pipeline for silent truncation, because it is the stage deciding what
+  the generator gets to see at all.
+
+  The budget is therefore spent deliberately: location and the situating line
+  first, because they disambiguate, then as much content as still fits.
+*/
+const RERANK_BUDGET = 1400;
+
 function asDocument(c: Candidate): string {
   const location = breadcrumb(c.documentTitle, c.headingPath);
-  return `${location}\n${c.context ? `${c.context}\n` : ""}${c.content}`.slice(0, 6000);
+  const head = `${location}\n${c.context ? `${c.context}\n` : ""}`;
+  const room = Math.max(200, RERANK_BUDGET - head.length);
+  return `${head}${c.content.slice(0, room)}`;
 }
 
 const ListwiseSchema = z.object({
@@ -130,7 +146,7 @@ async function llmRerank(
 ): Promise<RerankOutcome> {
   try {
     const listing = candidates
-      .map((c, i) => `<passage index="${i}">\n${asDocument(c).slice(0, 1200)}\n</passage>`)
+      .map((c, i) => `<passage index="${i}">\n${asDocument(c)}\n</passage>`)
       .join("\n\n");
 
     const object = await generateStructured({

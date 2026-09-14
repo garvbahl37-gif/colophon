@@ -1,4 +1,5 @@
 import { databaseHint } from "@/lib/db/client";
+import { assertCanWrite, guardResponse } from "@/lib/util/guard";
 import { corpusStats, deleteDocument, listDocuments } from "@/lib/ingest/pipeline";
 
 export async function GET() {
@@ -14,8 +15,21 @@ export async function GET() {
 }
 
 export async function DELETE(req: Request) {
+  try {
+    assertCanWrite(req);
+  } catch (error) {
+    const refused = guardResponse(error);
+    if (refused) return refused;
+    throw error;
+  }
+
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
-  await deleteDocument(id);
+
+  try {
+    await deleteDocument(id);
+  } catch (error) {
+    return Response.json({ error: databaseHint(error) }, { status: 500 });
+  }
   return Response.json({ ok: true });
 }

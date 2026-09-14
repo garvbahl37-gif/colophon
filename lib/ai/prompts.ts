@@ -26,7 +26,7 @@ Each sub-query must be independently searchable and phrased in the vocabulary a 
 
 keywords - literal identifiers from the question that stemming would mangle and that must match exactly: function names, error codes, versions, product names, acronyms. Empty array if there are none. Never include ordinary English words.
 
-hypothetical - a short, confident, invented passage (2-3 sentences) written as if excerpted from a document that answers the question. It will be embedded instead of the question so the vector lands in answer-space rather than question-space. Use plausible domain vocabulary. Do not hedge and do not mention that it is hypothetical.
+hypotheticals - ONE short invented passage per entry in subQueries, in the same order, same length. Each is 2-3 confident sentences written as if excerpted from a document that answers THAT sub-query specifically — not the overall question. Each will be embedded in place of its sub-query so the vector lands in answer-space rather than question-space. Use plausible domain vocabulary. Do not hedge and do not mention that they are hypothetical. If subQueries has two entries, hypotheticals has two entries, and the second must be about the second sub-query only.
 
 intent - the shape of the answer the user wants.`;
 
@@ -69,7 +69,18 @@ export function buildSourcesBlock(candidates: MarkedCandidate[]): string {
     .map((c) => {
       const location = breadcrumb(c.documentTitle, c.headingPath);
       const page = c.page ? ` | page ${c.page}` : "";
-      return `<source id="${c.marker}" from="${location}${page}">\n${c.expandedContent ?? c.content}\n</source>`;
+      /*
+        The situating line goes in too.
+
+        Ingest pays an LLM call per chunk to write it, and the reranker reads
+        it — but it was being dropped before the generator, which is the one
+        consumer that most needs it. "The value was raised to 30 seconds" is
+        ambiguous on its own; "From the Timeouts section, on the per-attempt
+        limit:" is what makes it answerable, and without it the model has to
+        guess which limit the passage means.
+      */
+      const situating = c.context ? ` context="${c.context.replace(/"/g, "'")}"` : "";
+      return `<source id="${c.marker}" from="${location}${page}"${situating}>\n${c.expandedContent ?? c.content}\n</source>`;
     })
     .join("\n\n");
 }

@@ -23,7 +23,7 @@ const PlanSchema = z.object({
   standalone: z.string(),
   subQueries: z.array(z.string()).max(4),
   keywords: z.array(z.string()).max(8),
-  hypothetical: z.string(),
+  hypotheticals: z.array(z.string()).max(4),
 });
 
 /**
@@ -54,16 +54,20 @@ export async function planQuery(question: string, history: string): Promise<Quer
 
     const standalone = object.standalone.trim() || question;
     const subQueries = object.subQueries.map((q) => q.trim()).filter(Boolean);
+    const queries = subQueries.length > 1 ? subQueries : [standalone];
+
+    // Align hypotheticals to queries. A model that returns the wrong count
+    // must degrade to "no HyDE for that arm", never to "reuse another arm's".
+    const hypotheticals = queries.map((_, i) => object.hypotheticals[i]?.trim() ?? "");
 
     return {
       intent: normaliseIntent(object.intent),
       needsRetrieval: object.needsRetrieval,
       standalone,
       // A single sub-query identical to the standalone adds a redundant round trip.
-      subQueries:
-        subQueries.length > 1 ? subQueries : [standalone],
+      subQueries: queries,
       keywords: object.keywords.map((k) => k.trim()).filter(Boolean),
-      hypothetical: object.hypothetical.trim() || null,
+      hypotheticals,
     };
   } catch (error) {
     // Planning is an optimisation. If it fails, search the question verbatim
@@ -79,7 +83,7 @@ export async function planQuery(question: string, history: string): Promise<Quer
       standalone: question,
       subQueries: [question],
       keywords: [],
-      hypothetical: null,
+      hypotheticals: [""],
     };
   }
 }

@@ -36,17 +36,35 @@ async function ingest(
   doc: LoadedDocument,
   opts: { checksum: string; byteSize: number; sourceUri?: string },
 ): Promise<IngestResult> {
-  const existing = await sql`
-    SELECT id, title, chunk_count FROM documents WHERE checksum = ${opts.checksum}
+  /*
+    Report the row's real state, and let a broken one be retried.
+
+    This previously selected only id/title/chunk_count and returned a literal
+    status of "ready". So a document whose ingest failed, or was killed by a
+    function timeout mid-pipeline, would answer every future upload of the same
+    file with "already indexed" — while holding zero chunks. The user believed
+    it was searchable, the agent correctly reported the corpus did not cover
+    it, and nothing short of manually deleting the row could fix it.
+  */
+  const [existing] = await sql<
+    { id: string; title: string; chunk_count: number; status: IngestStage }[]
+  >`
+    SELECT id, title, chunk_count, status FROM documents WHERE checksum = ${opts.checksum}
   `;
-  if (existing.length > 0) {
-    return {
-      documentId: existing[0].id,
-      title: existing[0].title,
-      chunkCount: existing[0].chunk_count,
-      status: "ready",
-      duplicate: true,
-    };
+
+  if (existing) {
+    const usable = existing.status === "ready" && existing.chunk_count > 0;
+    if (usable) {
+      return {
+        documentId: existing.id,
+        title: existing.title,
+        chunkCount: existing.chunk_count,
+        status: existing.status,
+        duplicate: true,
+      };
+    }
+    // Failed or half-finished: clear it so this upload actually re-ingests.
+    await sql`DELETE FROM documents WHERE id = ${existing.id}`;
   }
 
   const id = nanoid(12);
@@ -67,7 +85,11 @@ async function ingest(
 
     await setStage(id, "contextualizing", 0.2);
     const contexts = await contextualizeChunks(chunks, doc.text, doc.title, (done, total) => {
-      if (done % 10 === 0) void setStage(id, "contextualizing", 0.2 + 0.4 * (done / total));
+      // Progress is cosmetic; a rejected UPDATE here must not become an
+      // unhandled rejection that takes down every other request on the instance.
+      if (done % 10 === 0) {
+        void setStage(id, "contextualizing", 0.2 + 0.4 * (done / total)).catch(() => {});
+      }
     });
 
     await setStage(id, "embedding", 0.65);
@@ -149,6 +171,7 @@ export async function listDocuments() {
            error, chunk_count, char_count, metadata, created_at
     FROM documents
     ORDER BY created_at DESC
+    LIMIT 200
   `;
 }
 

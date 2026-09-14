@@ -23,8 +23,10 @@ import { join } from "node:path";
 import { sql } from "../lib/db/client";
 import { config } from "../lib/config";
 import { embedQuery } from "../lib/ai/models";
-import { hybridSearch } from "../lib/retrieval/hybrid";
+import { fuseAcrossQueries, hybridSearch } from "../lib/retrieval/hybrid";
 import { rerankCandidates } from "../lib/retrieval/rerank";
+import { lexicalQuery, planQuery } from "../lib/retrieval/query-planner";
+import { diversify } from "../lib/retrieval/compress";
 import type { Candidate } from "../lib/retrieval/types";
 
 interface GoldenCase {
@@ -46,6 +48,16 @@ interface Variant {
   denseWeight: number;
   sparseWeight: number;
   rerank: boolean;
+  /**
+   * Runs the real retrieval path — planner, per-sub-query HyDE, cross-query
+   * fusion, rerank, MMR — rather than embedding the question verbatim.
+   *
+   * Without this the harness measured a configuration the app does not ship,
+   * so a bug in decomposition or HyDE showed up as exactly zero delta. An
+   * instrument that cannot see the thing it is meant to measure is worse than
+   * no instrument, because it reads as evidence.
+   */
+  fullPipeline?: boolean;
 }
 
 const VARIANTS: Variant[] = [
@@ -53,6 +65,7 @@ const VARIANTS: Variant[] = [
   { name: "lexical only", denseWeight: 0, sparseWeight: 1, rerank: false },
   { name: "hybrid", denseWeight: 0.5, sparseWeight: 0.5, rerank: false },
   { name: "hybrid + rerank", denseWeight: 0.5, sparseWeight: 0.5, rerank: true },
+  { name: "full pipeline", denseWeight: 0.5, sparseWeight: 0.5, rerank: true, fullPipeline: true },
 ];
 
 /** A passage counts as relevant when it comes from one of the named sections. */
@@ -110,16 +123,43 @@ async function runVariant(variant: Variant): Promise<{ scores: Scores; misses: s
     if (testCase.absent) continue;
 
     const started = Date.now();
-    const embedding = await embedQuery(testCase.question);
-    let candidates = await hybridSearch({
-      embedding,
-      text: testCase.question,
-      denseWeight: variant.denseWeight,
-      sparseWeight: variant.sparseWeight,
-    });
+    let candidates: Candidate[];
+    let rerankQuery = testCase.question;
+
+    if (variant.fullPipeline) {
+      const plan = await planQuery(testCase.question, "");
+      rerankQuery = plan.standalone;
+      const rounds = await Promise.all(
+        plan.subQueries.map(async (subQuery, qi) => {
+          const hyde = plan.hypotheticals[qi] ?? "";
+          const embedding = await embedQuery(hyde || subQuery);
+          return {
+            query: subQuery,
+            candidates: await hybridSearch({
+              embedding,
+              text: lexicalQuery(plan, subQuery),
+              denseWeight: variant.denseWeight,
+              sparseWeight: variant.sparseWeight,
+            }),
+          };
+        }),
+      );
+      candidates = fuseAcrossQueries(rounds);
+    } else {
+      const embedding = await embedQuery(testCase.question);
+      candidates = await hybridSearch({
+        embedding,
+        text: testCase.question,
+        denseWeight: variant.denseWeight,
+        sparseWeight: variant.sparseWeight,
+      });
+    }
 
     if (variant.rerank) {
-      candidates = (await rerankCandidates(testCase.question, candidates, K)).candidates;
+      candidates = (await rerankCandidates(rerankQuery, candidates, K * 3)).candidates;
+    }
+    if (variant.fullPipeline) {
+      candidates = await diversify(candidates, K);
     }
     const top = candidates.slice(0, K);
     const ms = Date.now() - started;
@@ -185,7 +225,7 @@ async function main() {
   for (const variant of VARIANTS) {
     const { scores, misses } = await runVariant(variant);
     results.push({ variant, scores, misses });
-    const best = variant.rerank;
+    const best = Boolean(variant.fullPipeline);
     console.log(
       `  ${best ? "\x1b[32m" : ""}${variant.name.padEnd(17)}` +
         `${scores.hitAt1.toFixed(2).padEnd(8)}` +
@@ -199,7 +239,7 @@ async function main() {
 
   // The whole reason the harness exists: does the shipped configuration win?
   const baseline = results.find((r) => r.variant.name === "vector only")!;
-  const shipped = results.find((r) => r.variant.rerank)!;
+  const shipped = results.find((r) => r.variant.fullPipeline)!;
   const lift = ((shipped.scores.ndcg - baseline.scores.ndcg) / (baseline.scores.ndcg || 1)) * 100;
 
   console.log(

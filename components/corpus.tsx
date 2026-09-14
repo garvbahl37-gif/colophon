@@ -16,6 +16,13 @@ export interface DocumentRow {
   chunk_count: number;
 }
 
+/** What the server says about this browser's ability to write. */
+interface Access {
+  writable: boolean;
+  protected: boolean;
+  reason?: string;
+}
+
 export interface CorpusStats {
   documents: number;
   chunks: number;
@@ -109,25 +116,114 @@ export function CorpusRail({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [url, setUrl] = useState("");
-  const [token, setToken] = useState("");
-  const [locked, setLocked] = useState(false);
+  const [access, setAccess] = useState<Access | null>(null);
+  const [showUnlock, setShowUnlock] = useState(false);
+  const [unlockValue, setUnlockValue] = useState("");
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setToken(readToken()), []);
+  /*
+    The token lives in a ref, not in state, because the retry that runs the
+    moment it is accepted would otherwise close over the previous render's
+    value and be refused with the token the user just fixed.
+  */
+  const tokenRef = useRef("");
+  const pending = useRef<(() => Promise<void>) | null>(null);
 
-  function saveToken(next: string) {
-    setToken(next);
+  /*
+    Access is mirrored into a ref for the same reason. Unlocking resumes the
+    parked action in the same tick it records the new state, so a gate reading
+    the render's copy would still see "locked" and park the action a second
+    time -- the token turns green and nothing happens.
+  */
+  const accessRef = useRef<Access | null>(null);
+  const applyAccess = useCallback((next: Access) => {
+    accessRef.current = next;
+    setAccess(next);
+  }, []);
+
+  const verify = useCallback(async (candidate: string): Promise<Access | null> => {
     try {
-      localStorage.setItem(TOKEN_KEY, next);
+      const res = await fetch("/api/access", { headers: writeHeaders(candidate) });
+      return (await res.json()) as Access;
     } catch {
-      /* private browsing: it simply will not persist */
+      return null;
     }
-    if (next) setLocked(false);
+  }, []);
+
+  // Ask up front rather than letting the reader discover the lock by failing.
+  useEffect(() => {
+    tokenRef.current = readToken();
+    void verify(tokenRef.current).then((a) => a && applyAccess(a));
+  }, [verify, applyAccess]);
+
+  /**
+   * Gate for anything that writes. Returns false when the instance is locked,
+   * having parked the action so unlocking resumes it — being sent back to
+   * re-pick five files because a token was missing is its own small insult.
+   */
+  function requireWrite(retry: () => Promise<void>, label: string): boolean {
+    const current = accessRef.current;
+    if (current && !current.writable) {
+      pending.current = retry;
+      setPendingLabel(label);
+      setShowUnlock(true);
+      setMessage(null);
+      return false;
+    }
+    return true;
+  }
+
+  /** A live request came back refused: reconcile and offer the way through. */
+  function refused(retry: () => Promise<void>, label: string, reason?: string) {
+    applyAccess({ writable: false, protected: true, reason });
+    pending.current = retry;
+    setPendingLabel(label);
+    setShowUnlock(true);
+    setMessage(null);
+  }
+
+  async function unlock() {
+    const candidate = unlockValue.trim();
+    if (!candidate) return;
+    setUnlocking(true);
+    setUnlockError(null);
+
+    const result = await verify(candidate);
+    setUnlocking(false);
+
+    if (!result) {
+      setUnlockError("Could not reach the server to check that token.");
+      return;
+    }
+    if (!result.writable) {
+      setUnlockError(result.reason ?? "That token was not accepted.");
+      return;
+    }
+
+    tokenRef.current = candidate;
+    try {
+      localStorage.setItem(TOKEN_KEY, candidate);
+    } catch {
+      /* private browsing: it works now and asks again next visit */
+    }
+    applyAccess(result);
+    setShowUnlock(false);
+    setUnlockValue("");
+
+    const retry = pending.current;
+    pending.current = null;
+    setPendingLabel(null);
+    if (retry) await retry();
   }
 
   async function upload(files: FileList | File[]) {
     const list = [...files];
     if (list.length === 0) return;
+    const label = list.length === 1 ? list[0].name : `${list.length} files`;
+    if (!requireWrite(() => upload(list), label)) return;
     setBusy(true);
     setMessage(null);
     const form = new FormData();
@@ -136,12 +232,11 @@ export function CorpusRail({
       const res = await fetch("/api/ingest", {
         method: "POST",
         body: form,
-        headers: writeHeaders(token),
+        headers: writeHeaders(tokenRef.current),
       });
       const data = await res.json();
       if (res.status === 401 || res.status === 503) {
-        setLocked(true);
-        setMessage(data.error);
+        refused(() => upload(list), label, data.error);
       } else if (data.error) setMessage(data.error);
       else {
         const dupes = (data.results ?? []).filter((r: { duplicate?: boolean }) => r.duplicate).length;
@@ -158,18 +253,18 @@ export function CorpusRail({
   async function addUrl() {
     const target = url.trim();
     if (!target) return;
+    if (!requireWrite(addUrl, target)) return;
     setBusy(true);
     setMessage(null);
     try {
       const res = await fetch("/api/ingest", {
         method: "POST",
-        headers: { "content-type": "application/json", ...writeHeaders(token) },
+        headers: { "content-type": "application/json", ...writeHeaders(tokenRef.current) },
         body: JSON.stringify({ url: target }),
       });
       const data = await res.json();
       if (res.status === 401 || res.status === 503) {
-        setLocked(true);
-        setMessage(data.error);
+        refused(addUrl, target, data.error);
       } else if (data.error) setMessage(data.error);
       else setUrl("");
     } catch (e) {
@@ -181,13 +276,16 @@ export function CorpusRail({
   }
 
   async function remove(id: string) {
+    const title = documents.find((d) => d.id === id)?.title ?? "document";
+    if (!requireWrite(() => remove(id), `removing ${title}`)) return;
+
     const res = await fetch(`/api/documents?id=${id}`, {
       method: "DELETE",
-      headers: writeHeaders(token),
+      headers: writeHeaders(tokenRef.current),
     });
     if (res.status === 401 || res.status === 503) {
-      setLocked(true);
-      setMessage("Paste the write token to delete documents.");
+      const data = await res.json().catch(() => ({}));
+      refused(() => remove(id), `removing ${title}`, data.error);
       return;
     }
     const next = new Set(scope);
@@ -205,8 +303,22 @@ export function CorpusRail({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-baseline justify-between border-b border-line px-4 py-3">
-        <h2 className="label">Sources</h2>
+      <div className="flex items-baseline justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="flex items-baseline gap-2">
+          <h2 className="label">Sources</h2>
+          {access?.protected && (
+            <button
+              type="button"
+              onClick={() => setShowUnlock((v) => !v)}
+              aria-expanded={showUnlock}
+              className={`mono text-micro transition-colors ${
+                access.writable ? "text-jade" : "text-fg-3 hover:text-brand"
+              }`}
+            >
+              {access.writable ? "unlocked" : "read-only"}
+            </button>
+          )}
+        </div>
         {scope.size > 0 && (
           <button
             type="button"
@@ -235,7 +347,13 @@ export function CorpusRail({
         )}
       >
         <p className="text-small text-fg-2">
-          {busy ? "Working…" : dragging ? "Release to add" : "Drop files here"}
+          {busy
+            ? "Working…"
+            : dragging
+              ? "Release to add"
+              : access && !access.writable
+                ? "Unlock to add documents"
+                : "Drop files here"}
         </p>
         <p className="mt-0.5 text-micro text-fg-3">PDF, DOCX, Markdown, HTML, text</p>
         <button
@@ -274,19 +392,53 @@ export function CorpusRail({
         </button>
       </div>
 
-      {locked && (
-        <div className="mx-4 mt-3 border border-brand/40 bg-brand/5 p-3">
-          <p className="text-small text-fg">This instance is write-protected.</p>
-          <p className="mt-1 text-micro leading-snug text-fg-2">
-            Paste the write token to add or remove documents. It stays in this browser.
+      {showUnlock && (
+        <div
+          className={`mx-4 mt-3 border p-3 ${
+            access?.writable ? "border-line-lit bg-bg-2" : "border-brand/40 bg-brand/5"
+          }`}
+        >
+          <p className="text-small text-fg">
+            {access?.writable
+              ? "This browser is authorised."
+              : "This instance is write-protected."}
           </p>
-          <input
-            type="password"
-            value={token}
-            onChange={(e) => saveToken(e.target.value)}
-            placeholder="COLOPHON_WRITE_TOKEN"
-            className="mt-2 h-8 w-full border border-line bg-card px-3 text-small text-fg placeholder:text-fg-3 focus:border-fg focus:outline-none"
-          />
+          <p className="mt-1 text-micro leading-snug text-fg-2">
+            {access?.writable
+              ? "Paste a different token to replace the stored one."
+              : "Paste COLOPHON_WRITE_TOKEN to add or remove documents. It is checked once and stays in this browser."}
+          </p>
+
+          <div className="mt-2 flex gap-2">
+            <input
+              type="password"
+              autoFocus
+              value={unlockValue}
+              onChange={(e) => {
+                setUnlockValue(e.target.value);
+                setUnlockError(null);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && void unlock()}
+              placeholder="COLOPHON_WRITE_TOKEN"
+              className="h-8 min-w-0 flex-1 border border-line bg-card px-3 text-small text-fg placeholder:text-fg-3 focus:border-fg focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => void unlock()}
+              disabled={unlocking || !unlockValue.trim()}
+              className="btn btn-ghost btn-sm"
+            >
+              {unlocking ? "Checking…" : "Unlock"}
+            </button>
+          </div>
+
+          {unlockError ? (
+            <p className="mt-2 text-micro leading-snug text-alert">{unlockError}</p>
+          ) : pendingLabel ? (
+            <p className="mt-2 text-micro leading-snug text-fg-3">
+              Waiting to add {pendingLabel} — it runs as soon as this is accepted.
+            </p>
+          ) : null}
         </div>
       )}
 

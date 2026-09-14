@@ -34,7 +34,12 @@ export async function gradeSufficiency(
   candidates: Candidate[],
 ): Promise<Sufficiency> {
   if (candidates.length === 0) {
-    return { sufficient: false, confidence: 1, missing: "No passages retrieved.", refinedQuery: null };
+    return {
+      sufficient: false,
+      confidence: 1,
+      missing: "No passages retrieved — the corpus is empty or retrieval failed.",
+      refinedQuery: null,
+    };
   }
 
   try {

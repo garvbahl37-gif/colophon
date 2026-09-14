@@ -31,6 +31,7 @@ export type ToolEvent =
       method: string;
       candidates: Array<Candidate & { marker: number }>;
     }
+  | { type: "search:error"; id: string; query: string; message: string }
   | { type: "read:done"; id: string; chunkId: string; ms: number }
   | { type: "list:done"; id: string; count: number };
 
@@ -86,14 +87,39 @@ export function createRagTools(ctx: ToolContext) {
         ctx.onEvent({ type: "search:start", id, query, scope });
         const started = Date.now();
 
-        const embedding = await embedQuery(query);
-        const lexical = [query, ...keywords, ...keywords].join(" ");
+        /*
+          A retrieval failure and an empty corpus are completely different
+          situations, and conflating them is how this system produced its worst
+          possible output: embeddings were unavailable in production, the search
+          returned nothing, and the model concluded "the sources do not say" —
+          a confident, wrong answer that the groundedness audit then passed,
+          because that sentence is itself perfectly grounded.
 
-        const raw = await hybridSearch({
-          embedding,
-          text: lexical,
-          documentIds: documentIds?.length ? documentIds : ctx.documentIds,
-        });
+          So a broken search says it is broken, loudly, and instructs the model
+          not to answer from the absence of results.
+        */
+        let raw;
+        let lexical: string;
+        try {
+          const embedding = await embedQuery(query);
+          lexical = [query, ...keywords, ...keywords].join(" ");
+          raw = await hybridSearch({
+            embedding,
+            text: lexical,
+            documentIds: documentIds?.length ? documentIds : ctx.documentIds,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          ctx.onEvent({ type: "search:error", id, query, message });
+          return {
+            failed: true,
+            error: message,
+            instruction:
+              "SEARCH IS UNAVAILABLE — this is an infrastructure failure, not an empty corpus. " +
+              "Do not answer the question, and do not say the sources lack the information. " +
+              "Tell the user that document search is currently failing and report this error verbatim.",
+          };
+        }
 
         const dense = raw.filter((c) => c.denseRank != null).length;
         const sparse = raw.filter((c) => c.sparseRank != null).length;

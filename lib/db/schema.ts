@@ -21,7 +21,6 @@ export function schemaSql(dimensions: number, schema = "public"): string {
     throw new Error(`Invalid schema name: ${schema}`);
   }
   return /* sql */ `
-CREATE SCHEMA IF NOT EXISTS ${schema};
 SET LOCAL search_path TO ${schema}, extensions, public;
 
 CREATE TABLE IF NOT EXISTS documents (

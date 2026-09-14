@@ -7,14 +7,19 @@
  * first insert, long after setup "succeeded".
  */
 import "./env";
-import postgres from "postgres";
 import { config } from "../lib/config";
+import { schema, sql } from "../lib/db/client";
 import { schemaSql, vectorType } from "../lib/db/schema";
 
+/*
+  Uses the application's own connection rather than opening a second one.
+  A separate `postgres()` here silently missed search_path and TLS, so setup
+  created tables in the configured schema and then looked for them in `public`
+  — reporting `relation "index_meta" does not exist` against a database where
+  it plainly did. One place decides how this app connects.
+*/
 const reset = process.argv.includes("--reset");
-const schema = process.env.DB_SCHEMA ?? "public";
 const url = process.env.DATABASE_URL ?? "postgres://localhost:5432/colophon";
-const sql = postgres(url, { max: 1, prepare: false });
 
 const dim = (n: string | number) => `\x1b[2m${n}\x1b[0m`;
 const ok = (s: string) => console.log(`\x1b[32m✓\x1b[0m ${s}`);
@@ -53,6 +58,20 @@ async function main() {
       `DROP TABLE IF EXISTS ${schema}.chunks, ${schema}.documents, ` +
         `${schema}.query_log, ${schema}.index_meta CASCADE;`,
     );
+  }
+
+  /*
+    Create the schema only if it is genuinely absent. `CREATE SCHEMA IF NOT
+    EXISTS` still requires CREATE on the database, which a least-privilege
+    application role should not have — and usually the schema was already
+    provisioned by a migration run as the owner.
+  */
+  const [{ exists: schemaExists }] = await sql<{ exists: boolean }[]>`
+    SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = ${schema}) AS exists
+  `;
+  if (!schemaExists) {
+    await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
+    ok(`Created schema ${dim(schema)}`);
   }
 
   const dimensions = await probeDimensions();

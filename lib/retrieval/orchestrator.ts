@@ -285,6 +285,24 @@ async function runAgentic(args: {
       });
     }
 
+    if (event.type === "search:error") {
+      writer.write({
+        type: "data-trace",
+        id: `tool-${event.id}`,
+        data: {
+          id: `tool-${event.id}`,
+          stage: "retrieve",
+          label: `search "${truncate(event.query, 44)}"`,
+          status: "error",
+          detail: event.message,
+        },
+      });
+      writer.write({
+        type: "data-notice",
+        data: { level: "error", message: `Search failed: ${event.message}` },
+      });
+    }
+
     if (event.type === "read:done") {
       writer.write({
         type: "data-trace",

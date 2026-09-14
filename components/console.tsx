@@ -6,11 +6,12 @@ import { DefaultChatTransport } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/util/cn";
 import { breadcrumb } from "@/lib/util/breadcrumb";
+import { plainText } from "@/lib/util/plain-text";
 import type { ColophonMode, ColophonUIMessage, RetrievalRound, RetrievedPassage } from "@/lib/ai/types";
 import type { Citation, GroundingIssue, TraceSpan } from "@/lib/retrieval/types";
 import { Answer, GroundingBadge } from "./answer";
 import { Boot } from "./boot";
-import { CorpusRail, useCorpus } from "./corpus";
+import { CorpusRail, useCorpus, type CorpusStats, type DocumentRow } from "./corpus";
 import { RetrievalRoundView } from "./passages";
 import { ChannelLegend, TraceStrip } from "./trace";
 
@@ -266,7 +267,17 @@ export function Console() {
         <main className="flex min-w-0 flex-1 flex-col bg-card">
           <div ref={threadRef} className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-[48rem] px-6 py-10">
-              {messages.length === 0 && <EmptyState hasCorpus={stats.chunks > 0} />}
+              {messages.length === 0 && (
+                <EmptyState
+                  hasCorpus={stats.chunks > 0}
+                  documents={documents}
+                  stats={stats}
+                  onPick={(question) => {
+                    setInput(question);
+                    composerRef.current?.focus();
+                  }}
+                />
+              )}
 
               <div className="space-y-12">
                 {messages.map((message) => {
@@ -442,22 +453,136 @@ function CitationList({ citations }: { citations: Citation[] }) {
   );
 }
 
-function EmptyState({ hasCorpus }: { hasCorpus: boolean }) {
+/**
+ * The conversation before there is one.
+ *
+ * This was a headline and a paragraph in an otherwise empty column, which is
+ * the emptiest an interface ever looks and the first thing anyone sees. The
+ * replacement is not decoration: it answers the two questions actually being
+ * asked at that moment -- what is in here, and what can I ask it.
+ *
+ * Openers are built from the corpus rather than written in advance, so they
+ * name documents that genuinely exist, and clicking one fills the composer
+ * instead of sending, because the value is in showing the shape of a good
+ * question, not in answering a question nobody asked.
+ */
+function EmptyState({
+  hasCorpus,
+  documents,
+  stats,
+  onPick,
+}: {
+  hasCorpus: boolean;
+  documents: DocumentRow[];
+  stats: CorpusStats;
+  onPick: (question: string) => void;
+}) {
+  const ready = documents.filter((d) => d.status === "ready");
+  // Largest first: the document with the most passages has the most to answer.
+  const named = [...ready].sort((a, b) => b.chunk_count - a.chunk_count).slice(0, 3);
+
+  /*
+    Three different SHAPES of question, not the same sentence three times.
+
+    A list of "what does X say" repeated per document teaches nothing and reads
+    as filler. These each exercise something the system does that a plain
+    keyword search does not: grounded summary with per-claim citations,
+    reasoning across two documents at once, and the verbatim-wording path that
+    the trigram index exists to serve.
+  */
+  const clean = (t: string) =>
+    plainText(t).replace(/\s*[-–—|·]\s*(Wikipedia|Medium|Blog).*$/i, "").trim();
+
+  const titles = named.map((d) => clean(d.title)).filter(Boolean);
+  const openers: string[] = [];
+  if (titles[0]) openers.push(`Summarise "${titles[0]}", with a citation for each point.`);
+  if (titles[1]) {
+    openers.push(`Where do "${titles[0]}" and "${titles[1]}" overlap or disagree?`);
+  }
+  if (titles[0]) {
+    openers.push(`Quote the exact wording in "${titles[titles.length - 1]}" about limits or defaults.`);
+  }
+
+  const HOW = [
+    ["01", "Search", "Meaning and exact wording at once, fused into one ranking."],
+    ["02", "Rerank", "A cross-encoder reads query and passage together and reorders."],
+    ["03", "Cite", "Every claim carries the passage it came from, with its score."],
+  ] as const;
+
   return (
-    <div className="max-w-[36rem] py-10">
-      <h1 className="text-h2 leading-[1.08] font-extrabold tracking-[-0.03em] text-fg">
+    <div className="py-10">
+      <h1 className="max-w-[20ch] text-h2 leading-[1.06] font-extrabold tracking-[-0.03em] text-fg">
         Ask your documents something specific.
       </h1>
-      <p className="mt-3 text-base leading-relaxed text-fg-2">
+      <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-fg-2">
         Colophon searches by meaning and by exact wording at the same time, reranks what comes back
-        with a cross-encoder, and cites the passage behind every claim. Open the trace panel to
-        watch each search as it runs.
+        with a cross-encoder, and cites the passage behind every claim.
       </p>
-      {!hasCorpus && (
-        <p className="card mt-5 px-4 py-3 text-small text-fg-2">
-          Add a document first — drop a file into the Sources panel, or paste a URL.
-        </p>
+
+      {hasCorpus ? (
+        <>
+          {openers.length > 0 && (
+            <div className="mt-9">
+              <p className="label">Start with</p>
+              <ul className="mt-3 border-t border-line">
+                {openers.map((o) => (
+                  <li key={o}>
+                    <button
+                      type="button"
+                      onClick={() => onPick(o)}
+                      className="group flex w-full items-baseline gap-3 border-b border-hairline py-3 text-left transition-colors hover:bg-bg-2"
+                    >
+                      <span
+                        aria-hidden
+                        className="mono shrink-0 text-micro text-line-lit transition-colors group-hover:text-brand"
+                      >
+                        →
+                      </span>
+                      <span className="min-w-0 flex-1 text-small leading-snug text-fg-2 transition-colors group-hover:text-fg">
+                        {o}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <dl className="mono mt-8 flex flex-wrap gap-x-6 gap-y-1 text-micro text-fg-3">
+            <div className="flex gap-1.5">
+              <dt>documents</dt>
+              <dd className="text-fg">{stats.documents}</dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt>passages</dt>
+              <dd className="text-fg">{stats.chunks}</dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt>indexes</dt>
+              <dd className="text-fg">3</dd>
+            </div>
+          </dl>
+        </>
+      ) : (
+        <div className="card mt-8 px-4 py-3.5">
+          <p className="text-small text-fg">Nothing indexed yet.</p>
+          <p className="mt-1 text-small leading-relaxed text-fg-2">
+            Drop a file into the Sources panel, or paste a URL. Colophon will read it, write a
+            situating line for each passage, and index it three ways.
+          </p>
+        </div>
       )}
+
+      {/* What happens to a question, stated once, where it is relevant. */}
+      <div className="mt-12 grid gap-px border-t border-line bg-line sm:grid-cols-3">
+        {HOW.map(([no, name, detail]) => (
+          <div key={no} className="bg-card pt-4 sm:px-4 sm:first:pl-0">
+            <p className="mono text-micro text-brand">{no}</p>
+            <p className="mt-1 text-small font-bold text-fg">{name}</p>
+            <p className="mt-1 text-micro leading-relaxed text-fg-3">{detail}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

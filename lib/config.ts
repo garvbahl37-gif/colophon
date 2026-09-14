@@ -62,10 +62,15 @@ export const config = {
 
   contextual: {
     enabled: bool(process.env.CONTEXTUAL_RETRIEVAL, true),
-    /** Docs longer than this get a windowed excerpt as context, not the whole text. */
-    maxDocChars: num(process.env.CONTEXTUAL_MAX_DOC_CHARS, 48_000),
+    /** Docs at or under this are sent whole; longer ones get an outline plus a window. */
+    maxDocChars: num(process.env.CONTEXTUAL_MAX_DOC_CHARS, 12_000),
+    /** Prose sent around a group when the document is too long to send whole. */
+    windowChars: num(process.env.CONTEXTUAL_WINDOW_CHARS, 6_000),
     /** Parallel contextualization requests. */
     concurrency: num(process.env.CONTEXTUAL_CONCURRENCY, 8),
+    /** Chunks described per request. One call per chunk re-sent the whole
+        document every time, which is what made ingestion slow. */
+    batchSize: num(process.env.CONTEXTUAL_BATCH_SIZE, 10),
   },
 
   embedding: {

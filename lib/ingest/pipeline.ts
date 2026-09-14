@@ -35,6 +35,7 @@ async function setStage(id: string, stage: IngestStage, progress: number) {
 async function ingest(
   doc: LoadedDocument,
   opts: { checksum: string; byteSize: number; sourceUri?: string },
+  defer?: Defer,
 ): Promise<IngestResult> {
   /*
     Report the row's real state, and let a broken one be retried.
@@ -76,6 +77,30 @@ async function ingest(
        ${opts.checksum}, 'parsing', 'parsing', ${doc.text.length}, ${sql.json(doc.metadata as never)})
   `;
 
+  /*
+    Everything past this point is slow, and none of it is anything the caller
+    can act on. Contextualising a page is dozens of generations, and this
+    provider runs them one at a time however many are issued at once, so a
+    50-chunk document is minutes of model time. Holding the HTTP request open
+    for it freezes the Sources panel behind a "Working…" label and tells the
+    reader nothing.
+
+    The document row already exists and already carries stage and progress, and
+    the rail already polls them. So when the caller can defer work past the
+    response -- on Vercel, waitUntil -- the row is returned the moment it
+    exists and the reader watches it fill in. Without a defer (a script, a
+    test) the behaviour is unchanged and the promise is awaited.
+  */
+  const work = finish();
+  if (defer) {
+    // The row records its own failure, so a rejection here is already
+    // reported; swallowing it only stops an unhandled rejection.
+    defer(work.catch(() => {}));
+    return { documentId: id, title: doc.title, chunkCount: 0, status: "parsing" };
+  }
+  return work;
+
+  async function finish(): Promise<IngestResult> {
   try {
     await setStage(id, "chunking", 0.1);
     const chunks = chunkDocument(doc);
@@ -137,28 +162,41 @@ async function ingest(
     `;
     throw error;
   }
+  }
 }
+
+/** Hands long-running work to the runtime so it outlives the response. */
+export type Defer = (work: Promise<unknown>) => void;
 
 export async function ingestFile(
   buffer: Buffer,
   filename: string,
   mimeType?: string,
+  defer?: Defer,
 ): Promise<IngestResult> {
   const doc = await loadFile(buffer, filename, mimeType);
-  return ingest(doc, {
-    checksum: createHash("sha256").update(buffer).digest("hex"),
-    byteSize: buffer.byteLength,
-    sourceUri: filename,
-  });
+  return ingest(
+    doc,
+    {
+      checksum: createHash("sha256").update(buffer).digest("hex"),
+      byteSize: buffer.byteLength,
+      sourceUri: filename,
+    },
+    defer,
+  );
 }
 
-export async function ingestUrl(url: string): Promise<IngestResult> {
+export async function ingestUrl(url: string, defer?: Defer): Promise<IngestResult> {
   const doc = await loadUrl(url);
-  return ingest(doc, {
-    checksum: createHash("sha256").update(`${url} ${doc.text}`).digest("hex"),
-    byteSize: Buffer.byteLength(doc.text),
-    sourceUri: url,
-  });
+  return ingest(
+    doc,
+    {
+      checksum: createHash("sha256").update(`${url} ${doc.text}`).digest("hex"),
+      byteSize: Buffer.byteLength(doc.text),
+      sourceUri: url,
+    },
+    defer,
+  );
 }
 
 export async function deleteDocument(id: string) {

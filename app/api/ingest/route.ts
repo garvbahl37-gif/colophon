@@ -1,9 +1,15 @@
+import { waitUntil } from "@vercel/functions";
 import { ingestFile, ingestUrl } from "@/lib/ingest/pipeline";
 import { assertGatewayKey } from "@/lib/ai/models";
 import { assertWithinRate, guardResponse } from "@/lib/util/guard";
 import { assertWithinIngestBudget } from "@/lib/util/budget";
 
-/** Contextualising a large document is many small LLM calls; allow for it. */
+/*
+  Contextualising a large document is many generations, and the work now
+  continues past the response via waitUntil. The ceiling still applies to it --
+  waitUntil extends the function's life, it does not exempt it -- so this stays
+  at the platform maximum.
+*/
 export const maxDuration = 300;
 
 /** One document can produce one LLM call per chunk, so this is a cost ceiling. */
@@ -32,7 +38,7 @@ export async function POST(req: Request) {
     if (contentType.includes("application/json")) {
       const { url } = (await req.json()) as { url?: string };
       if (!url) return Response.json({ error: "Missing url" }, { status: 400 });
-      return Response.json(await ingestUrl(url));
+      return Response.json(await ingestUrl(url, waitUntil));
     }
 
     const form = await req.formData();
@@ -52,7 +58,7 @@ export async function POST(req: Request) {
     const results = [];
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
-      results.push(await ingestFile(buffer, file.name, file.type));
+      results.push(await ingestFile(buffer, file.name, file.type, waitUntil));
     }
     return Response.json({ results });
   } catch (error) {

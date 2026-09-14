@@ -258,13 +258,25 @@ carrier-grade-NAT ranges, and caps the body while streaming. Checking only the
 submitted URL would be useless, because a public host can redirect to
 `169.254.169.254`.
 
-**Write protection.** Ingestion runs one LLM call per chunk, so an open endpoint
-is an unmetered bill. `/api/ingest` and `DELETE /api/documents` require
-`COLOPHON_WRITE_TOKEN`; a deployed instance without one refuses writes rather
-than accepting them from strangers. The console asks for the token once and keeps
-it in the browser, because a secret shipped in the bundle is not a secret. Reads
-stay open by design. Chat is rate limited and its caller-supplied message array
-is bounded in both count and size.
+**Spend, not access.** Ingestion runs one LLM call per chunk, so an open endpoint
+is an unmetered bill. An earlier version put a shared secret in front of writes.
+It worked, and it was the wrong control: the owner of the instance had to paste a
+password into their own site, and a secret that has to reach a browser to be
+useful is not much of a secret anyway. What is worth protecting here is the bill.
+
+So `/api/ingest` is bounded instead of gated. `lib/util/budget.ts` caps how many
+passages the instance will index per day (`COLOPHON_DAILY_CHUNK_BUDGET`, default
+600), counted from the corpus itself so the ceiling holds across serverless
+instances that share nothing else. A per-IP limiter caps the rate on top of that,
+and deletes are rate limited too. Chat is rate limited and its caller-supplied
+message array is bounded in both count and size.
+
+The honest limitation: anyone with the URL can add or remove documents, and
+deleting today's documents frees budget again, so this stops casual abuse and an
+accidental bill, not a determined attacker with a script. That is the intended
+trade for a public demo whose corpus is re-ingestible. An instance holding
+anything that must not be touched by a stranger belongs behind Vercel Deployment
+Protection — the whole site, not a password typed into a public page.
 
 **Database.** The app connects as a dedicated least-privilege role that owns only
 its own schema and **cannot reach `public`** — verified, not assumed. RLS is

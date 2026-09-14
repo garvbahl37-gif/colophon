@@ -1,38 +1,25 @@
 /**
- * Guards for endpoints that cost money or change state.
+ * Guards for endpoints that cost money.
  *
  * This app is deployed publicly with no user accounts, and two of its routes
  * are expensive: ingestion runs one LLM call per chunk, and chat runs a whole
- * agent loop. Without a gate, a stranger with the URL can drain the API key
- * behind it or delete the corpus. These are the cheapest controls that
- * actually close that, and they are deliberately not an auth system — a
- * single shared secret plus a per-IP budget is the right size for this.
+ * agent loop. The controls here bound how fast anyone can spend that, and
+ * deliberately stop there.
+ *
+ * An earlier version put a shared secret in front of writes. It protected the
+ * key, and it also meant the person who owned the instance had to paste a
+ * password into their own site before they could add a document — a password
+ * that, to be useful in a browser, would have had to be handed to every
+ * visitor anyway. That trade was not worth making. What is actually worth
+ * protecting here is the bill, and a budget protects the bill without asking
+ * anyone to hold a secret: see lib/util/budget.ts for the ceiling, and the
+ * per-IP limiter below for the rate.
+ *
+ * This is a considered trade, not an oversight. Anyone with the URL can add or
+ * remove documents. If this instance ever holds something that must not be
+ * touched by a stranger, the answer is Vercel Deployment Protection in front
+ * of the whole site, not a secret typed into a public page.
  */
-
-/** Writes are refused entirely unless a secret is configured AND matches. */
-export function assertCanWrite(req: Request): void {
-  const expected = process.env.COLOPHON_WRITE_TOKEN;
-
-  // Local development stays frictionless; a public deployment does not.
-  if (!expected) {
-    if (process.env.VERCEL) {
-      throw new GuardError(
-        "This deployment is read-only: COLOPHON_WRITE_TOKEN is not configured.",
-        503,
-      );
-    }
-    return;
-  }
-
-  const supplied =
-    req.headers.get("x-colophon-token") ??
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
-    "";
-
-  if (!timingSafeEqual(supplied, expected)) {
-    throw new GuardError("Not authorised to modify the corpus.", 401);
-  }
-}
 
 export class GuardError extends Error {
   constructor(
@@ -43,20 +30,12 @@ export class GuardError extends Error {
   }
 }
 
-/** Constant-time compare so a wrong token cannot be found byte by byte. */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
 /* ── Rate limiting ─────────────────────────────────────────────────────────
    In-memory and per-instance, which on serverless means the real limit is
    looser than the number here. That is an honest trade: it stops a single
    client hammering one warm instance, costs nothing, and needs no Redis. It
-   is not a defence against a distributed attacker, and the write token is
-   what actually protects the expensive paths.
+   is not a defence against a distributed attacker; the daily ceiling in
+   lib/util/budget.ts is what actually bounds the spend.
 */
 
 const WINDOW_MS = 60_000;

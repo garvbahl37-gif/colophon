@@ -1,6 +1,7 @@
 import { ingestFile, ingestUrl } from "@/lib/ingest/pipeline";
 import { assertGatewayKey } from "@/lib/ai/models";
-import { assertCanWrite, assertWithinRate, guardResponse } from "@/lib/util/guard";
+import { assertWithinRate, guardResponse } from "@/lib/util/guard";
+import { assertWithinIngestBudget } from "@/lib/util/budget";
 
 /** Contextualising a large document is many small LLM calls; allow for it. */
 export const maxDuration = 300;
@@ -11,8 +12,8 @@ const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 export async function POST(req: Request) {
   try {
-    assertCanWrite(req);
     assertWithinRate(req, 10, "ingest");
+    await assertWithinIngestBudget();
   } catch (error) {
     const refused = guardResponse(error);
     if (refused) return refused;

@@ -1,5 +1,5 @@
 import { databaseHint } from "@/lib/db/client";
-import { assertCanWrite, guardResponse } from "@/lib/util/guard";
+import { assertWithinRate, guardResponse } from "@/lib/util/guard";
 import { corpusStats, deleteDocument, listDocuments } from "@/lib/ingest/pipeline";
 
 export async function GET() {
@@ -15,8 +15,11 @@ export async function GET() {
 }
 
 export async function DELETE(req: Request) {
+  // Deleting costs nothing and re-ingesting is always possible, so this is
+  // rate-limited rather than gated: enough to stop a script emptying the
+  // corpus in a loop, without a password in front of the operator's own tool.
   try {
-    assertCanWrite(req);
+    assertWithinRate(req, 30, "delete");
   } catch (error) {
     const refused = guardResponse(error);
     if (refused) return refused;

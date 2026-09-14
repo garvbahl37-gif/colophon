@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Masthead } from "@/components/masthead";
+import { PipelineFlow } from "@/components/pipeline-flow";
 import { RetrievalAnimation } from "@/components/retrieval-animation";
 import { ProductMock } from "@/components/product-mock";
 
@@ -84,6 +85,7 @@ export default function Landing() {
           </div>
 
           <div className="col-span-6 mt-10 md:col-span-8 md:mt-0">
+            <PipelineFlow className="mb-12" />
             <RetrievalAnimation />
           </div>
         </div>

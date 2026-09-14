@@ -515,6 +515,72 @@ input[type="checkbox"] {
   animation: blink 1.05s steps(1) infinite;
 }
 
+/* ── Hero mockup ────────────────────────────────────────────────────────────
+   One 8.2s loop shared by every element; each carries an animation-delay
+   marking its place in the sequence. Only opacity and transform are animated,
+   so the compositor handles it and the main thread stays free — the point of
+   moving this off requestAnimationFrame in the first place.
+*/
+.mock { --mock-loop: 8.2s; }
+
+@keyframes mock-step {
+  0%, 2%   { opacity: 0; transform: translateY(5px); }
+  6%, 96%  { opacity: 1; transform: none; }
+  100%     { opacity: 0; transform: none; }
+}
+.mock-step {
+  opacity: 0;
+  animation: mock-step var(--mock-loop) linear infinite;
+}
+
+@keyframes mock-bar {
+  0%, 2%  { transform: scaleX(0); }
+  14%,96% { transform: scaleX(1); }
+  100%    { transform: scaleX(1); }
+}
+.mock-bar {
+  transform: scaleX(0);
+  animation: mock-bar var(--mock-loop) cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes mock-verdict {
+  0%, 68%  { opacity: 0; }
+  74%, 96% { opacity: 1; }
+  100%     { opacity: 0; }
+}
+.mock-verdict { opacity: 0; animation: mock-verdict var(--mock-loop) linear infinite; }
+
+@keyframes mock-busy {
+  0%, 70%  { opacity: 1; }
+  76%,100% { opacity: 0.2; }
+}
+.mock-busy { animation: mock-busy var(--mock-loop) linear infinite; }
+
+/* ── Pipeline flow ──────────────────────────────────────────────────────────
+   The query travelling through the stages. Dashes move along each connector
+   and each node lights as the signal reaches it, so the diagram reads as a
+   process rather than a picture of one.
+*/
+@keyframes pipe-dash { to { stroke-dashoffset: -28; } }
+.pipe-flow {
+  stroke-dasharray: 3 9;
+  animation: pipe-dash 1.1s linear infinite;
+}
+
+@keyframes pipe-node {
+  0%, 8%   { opacity: 0.28; }
+  16%, 40% { opacity: 1; }
+  60%,100% { opacity: 0.45; }
+}
+.pipe-node { animation: pipe-node 5.4s ease-in-out infinite; }
+
+@keyframes pipe-pulse {
+  0%      { transform: scale(0.6); opacity: 0; }
+  30%     { opacity: 1; }
+  100%    { transform: scale(2.6); opacity: 0; }
+}
+.pipe-pulse { animation: pipe-pulse 5.4s ease-out infinite; transform-origin: center; }
+
 /* Boot: each letter drops in on its own delay. One orchestrated moment. */
 @keyframes boot-letter {
   from { opacity: 0; transform: translateY(0.16em); }
@@ -541,4 +607,9 @@ input[type="checkbox"] {
   }
   .scanning::after { display: none; }
   .caret { animation: none; opacity: 0.85; }
+  /* Hold the finished state rather than animating toward it. */
+  .mock-step, .mock-verdict { opacity: 1 !important; transform: none !important; }
+  .mock-bar { transform: scaleX(1) !important; }
+  .pipe-node { opacity: 1 !important; }
+  .pipe-flow, .pipe-pulse { animation: none !important; }
 }

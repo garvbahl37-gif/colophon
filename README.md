@@ -258,25 +258,42 @@ carrier-grade-NAT ranges, and caps the body while streaming. Checking only the
 submitted URL would be useless, because a public host can redirect to
 `169.254.169.254`.
 
-**Spend, not access.** Ingestion runs one LLM call per chunk, so an open endpoint
-is an unmetered bill. An earlier version put a shared secret in front of writes.
-It worked, and it was the wrong control: the owner of the instance had to paste a
-password into their own site, and a secret that has to reach a browser to be
-useful is not much of a secret anyway. What is worth protecting here is the bill.
+**Spend, not access.** Ingestion runs one LLM call per group of chunks, so an
+open endpoint is an unmetered bill. `lib/util/budget.ts` caps how many passages
+the instance will index per day (`COLOPHON_DAILY_CHUNK_BUDGET`, default 600),
+counted from the corpus itself so the ceiling holds across serverless instances
+that share nothing else. A per-IP limiter caps the rate on top of that, and
+deletes and chat are rate limited too. Chat's caller-supplied message array is
+bounded in both count and size.
 
-So `/api/ingest` is bounded instead of gated. `lib/util/budget.ts` caps how many
-passages the instance will index per day (`COLOPHON_DAILY_CHUNK_BUDGET`, default
-600), counted from the corpus itself so the ceiling holds across serverless
-instances that share nothing else. A per-IP limiter caps the rate on top of that,
-and deletes are rate limited too. Chat is rate limited and its caller-supplied
-message array is bounded in both count and size.
+**Separation without accounts.** The instance is public and has no sign-in, so
+one visitor's documents must not be readable, searchable or deletable by the
+next. Each browser gets an opaque id in an httpOnly cookie
+(`lib/util/owner.ts`), documents carry an `owner_id`, and `searchableDocumentIds`
+resolves the permitted set once per request. Retrieval already filters by
+document id, so every arm of the hybrid query, every agent tool call and every
+neighbour expansion inherits that filter rather than re-deriving it. A `NULL`
+owner is the sample corpus the instance ships with, readable by everyone;
+everything added through the interface belongs to one browser.
 
-The honest limitation: anyone with the URL can add or remove documents, and
-deleting today's documents frees budget again, so this stops casual abuse and an
-accidental bill, not a determined attacker with a script. That is the intended
-trade for a public demo whose corpus is re-ingestible. An instance holding
-anything that must not be touched by a stranger belongs behind Vercel Deployment
-Protection — the whole site, not a password typed into a public page.
+Two details that are boundaries rather than conveniences: an empty document
+filter means *no documents*, never "the whole corpus" — collapsing those turns
+"entitled to nothing" into "search everything" — and checksum de-duplication is
+per-owner, or one visitor's upload would be answered with another's document row.
+
+This is not authentication. The cookie is not a credential, anyone holding it is
+that owner, and clearing cookies loses access to your own documents. It is
+enough to stop documents leaking between visitors and no more; anything that
+genuinely requires authentication needs Vercel Deployment Protection or a real
+identity provider in front of it.
+
+**Conversations stay in the browser.** `query_log` records the shape of a run —
+stage timings, mode, how many citations — and deliberately not the question, the
+answer or the citations. None of that is needed to measure the pipeline, and on
+a shared instance it would leave one person's questions sitting beside another's
+in a table nobody can see or clear. The thread is kept in `localStorage`, so a
+reload does not lose it and `Clear` actually deletes it. An operator who wants
+full transcripts for offline evaluation opts in with `COLOPHON_LOG_QUERIES=1`.
 
 **Database.** The app connects as a dedicated least-privilege role that owns only
 its own schema and **cannot reach `public`** — verified, not assumed. RLS is

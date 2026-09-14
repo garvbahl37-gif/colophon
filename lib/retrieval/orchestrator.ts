@@ -200,10 +200,30 @@ export async function runColophon(opts: RunOptions): Promise<void> {
     messageMetadata: { latencyMs, mode, model: config.models.generate },
   });
 
+  /*
+    What gets written down, and what deliberately does not.
+
+    This table exists to make the pipeline measurable offline -- which stages
+    are slow, how often grounding fails. None of that needs the question or the
+    answer, and on a shared instance storing them is a straightforward leak:
+    the conversation is the most sensitive thing here, it is written to a table
+    no reader can see or clear, and one person's questions would sit beside
+    another's indefinitely.
+
+    So the content stays in the reader's browser and only the shape of the run
+    is recorded. An operator who wants full transcripts for evaluation on their
+    own machine opts in explicitly; a public deployment never should.
+  */
+  const keepTranscripts = process.env.COLOPHON_LOG_QUERIES === "1";
   await sql`
     INSERT INTO query_log (id, query, plan, trace, citations, answer, latency_ms)
-    VALUES (${nanoid(12)}, ${question}, ${sql.json({ mode })}, ${sql.json(trace.spans as never)},
-            ${sql.json(citations as never)}, ${answer}, ${latencyMs})
+    VALUES (${nanoid(12)},
+            ${keepTranscripts ? question : ""},
+            ${sql.json({ mode, citations: citations.length })},
+            ${sql.json(trace.spans as never)},
+            ${keepTranscripts ? sql.json(citations as never) : null},
+            ${keepTranscripts ? answer : null},
+            ${latencyMs})
   `.catch(() => {});
 }
 

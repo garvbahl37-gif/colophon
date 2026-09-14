@@ -4,6 +4,8 @@ import { databaseHint } from "@/lib/db/client";
 import { assertWithinRate, guardResponse } from "@/lib/util/guard";
 import type { ColophonMode, ColophonUIMessage } from "@/lib/ai/types";
 import { runColophon } from "@/lib/retrieval/orchestrator";
+import { searchableDocumentIds } from "@/lib/ingest/pipeline";
+import { currentOwner } from "@/lib/util/owner";
 
 /** Agentic runs can chain several retrievals; give them room. */
 export const maxDuration = 300;
@@ -31,6 +33,7 @@ export async function POST(req: Request) {
   }
 
   const { messages = [], mode = "agent", documentIds = null } = body;
+  const owner = await currentOwner();
 
   /*
     The caller supplies the whole conversation, so it is untrusted input, not
@@ -73,10 +76,30 @@ export async function POST(req: Request) {
 
   const stream = createUIMessageStream<ColophonUIMessage>({
     execute: async ({ writer }) => {
+      /*
+        Access is resolved here, once, and passed down as an explicit list.
+
+        Retrieval already filters by document id, so the permitted set is the
+        natural place to enforce who may read what -- every arm of the hybrid
+        query, every agent tool call and every neighbour expansion inherits it
+        without each having to remember. The selection the reader made in the
+        rail narrows that set and can never widen it: an id they do not own is
+        dropped rather than honoured.
+
+        An empty result is passed through as an empty list, not as null. Null
+        means "the whole corpus" one layer down, which is exactly the wrong
+        answer for a visitor entitled to nothing.
+      */
+      const searchable = await searchableDocumentIds(owner);
+      const permitted = new Set(searchable);
+      const scoped = documentIds?.length
+        ? documentIds.filter((id) => permitted.has(id))
+        : searchable;
+
       await runColophon({
         question,
         messages,
-        documentIds: documentIds?.length ? documentIds : null,
+        documentIds: scoped,
         mode,
         writer,
       });

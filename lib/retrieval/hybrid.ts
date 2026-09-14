@@ -200,7 +200,14 @@ export async function hybridSearch(opts: HybridOptions): Promise<Candidate[]> {
     toVector(embedding),
     text,
     candidates,
-    documentIds?.length ? documentIds : null,
+    /*
+      null means "every document"; an empty array means "no document", and the
+      difference is a security boundary rather than a nicety. Collapsing the
+      empty case to null -- which this did -- turns "this visitor may read
+      nothing" into "search the entire corpus". Callers that mean "unscoped"
+      pass null explicitly.
+    */
+    documentIds ?? null,
     denseWeight,
     sparseWeight,
     config.retrieval.rrfK,

@@ -1,10 +1,12 @@
 import { databaseHint } from "@/lib/db/client";
 import { assertWithinRate, guardResponse } from "@/lib/util/guard";
 import { corpusStats, deleteDocument, listDocuments } from "@/lib/ingest/pipeline";
+import { currentOwner } from "@/lib/util/owner";
 
 export async function GET() {
   try {
-    const [documents, stats] = await Promise.all([listDocuments(), corpusStats()]);
+    const owner = await currentOwner();
+    const [documents, stats] = await Promise.all([listDocuments(owner), corpusStats(owner)]);
     return Response.json({ documents, stats });
   } catch (error) {
     return Response.json(
@@ -30,7 +32,7 @@ export async function DELETE(req: Request) {
   if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
 
   try {
-    await deleteDocument(id);
+    await deleteDocument(id, await currentOwner());
   } catch (error) {
     return Response.json({ error: databaseHint(error) }, { status: 500 });
   }

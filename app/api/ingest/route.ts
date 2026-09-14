@@ -3,6 +3,7 @@ import { ingestFile, ingestUrl } from "@/lib/ingest/pipeline";
 import { assertGatewayKey } from "@/lib/ai/models";
 import { assertWithinRate, guardResponse } from "@/lib/util/guard";
 import { assertWithinIngestBudget } from "@/lib/util/budget";
+import { currentOwner } from "@/lib/util/owner";
 
 /*
   Contextualising a large document is many generations, and the work now
@@ -32,13 +33,14 @@ export async function POST(req: Request) {
     return Response.json({ error: (error as Error).message }, { status: 503 });
   }
 
+  const owner = await currentOwner();
   const contentType = req.headers.get("content-type") ?? "";
 
   try {
     if (contentType.includes("application/json")) {
       const { url } = (await req.json()) as { url?: string };
       if (!url) return Response.json({ error: "Missing url" }, { status: 400 });
-      return Response.json(await ingestUrl(url, waitUntil));
+      return Response.json(await ingestUrl(url, owner, waitUntil));
     }
 
     const form = await req.formData();
@@ -58,7 +60,7 @@ export async function POST(req: Request) {
     const results = [];
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
-      results.push(await ingestFile(buffer, file.name, file.type, waitUntil));
+      results.push(await ingestFile(buffer, file.name, file.type, owner, waitUntil));
     }
     return Response.json({ results });
   } catch (error) {

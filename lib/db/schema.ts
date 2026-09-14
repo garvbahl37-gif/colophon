@@ -25,6 +25,9 @@ SET LOCAL search_path TO ${schema}, extensions, public;
 
 CREATE TABLE IF NOT EXISTS documents (
   id            text PRIMARY KEY,
+  -- Which browser added this. NULL is the shared sample corpus that ships with
+  -- the instance; everything else is private to one owner. See lib/util/owner.
+  owner_id      text,
   title         text NOT NULL,
   source_type   text NOT NULL,
   source_uri    text,
@@ -40,6 +43,8 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS documents_owner ON documents (owner_id);
 
 CREATE TABLE IF NOT EXISTS chunks (
   id            text PRIMARY KEY,

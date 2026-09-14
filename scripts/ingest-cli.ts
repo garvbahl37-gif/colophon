@@ -5,6 +5,13 @@ import { basename } from "node:path";
 import { sql } from "../lib/db/client";
 import { ingestFile, ingestUrl } from "../lib/ingest/pipeline";
 
+/*
+  The CLI seeds the SHARED corpus: a null owner, readable by every visitor.
+  That is the sample set an instance ships with. Anything added through the web
+  interface belongs to the browser that added it and is private to it.
+*/
+const SHARED = null;
+
 const targets = process.argv.slice(2);
 if (targets.length === 0) {
   console.error("usage: pnpm ingest <file|url> [...]");
@@ -15,8 +22,8 @@ for (const target of targets) {
   const started = Date.now();
   try {
     const result = target.startsWith("http")
-      ? await ingestUrl(target)
-      : await ingestFile(await readFile(target), basename(target));
+      ? await ingestUrl(target, SHARED)
+      : await ingestFile(await readFile(target), basename(target), undefined, SHARED);
     const secs = ((Date.now() - started) / 1000).toFixed(1);
     console.log(
       result.duplicate

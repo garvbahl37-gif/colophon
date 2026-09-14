@@ -34,7 +34,7 @@ async function setStage(id: string, stage: IngestStage, progress: number) {
 
 async function ingest(
   doc: LoadedDocument,
-  opts: { checksum: string; byteSize: number; sourceUri?: string },
+  opts: { checksum: string; byteSize: number; sourceUri?: string; ownerId: string | null },
   defer?: Defer,
 ): Promise<IngestResult> {
   /*
@@ -47,10 +47,17 @@ async function ingest(
     it was searchable, the agent correctly reported the corpus did not cover
     it, and nothing short of manually deleting the row could fix it.
   */
+  /*
+    Scoped to the owner. A global checksum lookup would answer one visitor's
+    upload with another visitor's document row -- telling them it was "already
+    indexed", handing them its id, and giving them nothing they may read.
+  */
   const [existing] = await sql<
     { id: string; title: string; chunk_count: number; status: IngestStage }[]
   >`
-    SELECT id, title, chunk_count, status FROM documents WHERE checksum = ${opts.checksum}
+    SELECT id, title, chunk_count, status FROM documents
+    WHERE checksum = ${opts.checksum}
+      AND owner_id IS NOT DISTINCT FROM ${opts.ownerId}
   `;
 
   if (existing) {
@@ -71,10 +78,12 @@ async function ingest(
   const id = nanoid(12);
   await sql`
     INSERT INTO documents
-      (id, title, source_type, source_uri, byte_size, checksum, status, stage, char_count, metadata)
+      (id, owner_id, title, source_type, source_uri, byte_size, checksum, status, stage,
+       char_count, metadata)
     VALUES
-      (${id}, ${doc.title}, ${doc.sourceType}, ${opts.sourceUri ?? null}, ${opts.byteSize},
-       ${opts.checksum}, 'parsing', 'parsing', ${doc.text.length}, ${sql.json(doc.metadata as never)})
+      (${id}, ${opts.ownerId}, ${doc.title}, ${doc.sourceType}, ${opts.sourceUri ?? null},
+       ${opts.byteSize}, ${opts.checksum}, 'parsing', 'parsing', ${doc.text.length},
+       ${sql.json(doc.metadata as never)})
   `;
 
   /*
@@ -172,7 +181,8 @@ export type Defer = (work: Promise<unknown>) => void;
 export async function ingestFile(
   buffer: Buffer,
   filename: string,
-  mimeType?: string,
+  mimeType: string | undefined,
+  ownerId: string | null,
   defer?: Defer,
 ): Promise<IngestResult> {
   const doc = await loadFile(buffer, filename, mimeType);
@@ -182,12 +192,17 @@ export async function ingestFile(
       checksum: createHash("sha256").update(buffer).digest("hex"),
       byteSize: buffer.byteLength,
       sourceUri: filename,
+      ownerId,
     },
     defer,
   );
 }
 
-export async function ingestUrl(url: string, defer?: Defer): Promise<IngestResult> {
+export async function ingestUrl(
+  url: string,
+  ownerId: string | null,
+  defer?: Defer,
+): Promise<IngestResult> {
   const doc = await loadUrl(url);
   return ingest(
     doc,
@@ -195,31 +210,64 @@ export async function ingestUrl(url: string, defer?: Defer): Promise<IngestResul
       checksum: createHash("sha256").update(`${url} ${doc.text}`).digest("hex"),
       byteSize: Buffer.byteLength(doc.text),
       sourceUri: url,
+      ownerId,
     },
     defer,
   );
 }
 
-export async function deleteDocument(id: string) {
-  await sql`DELETE FROM documents WHERE id = ${id}`;
+/*
+  Visibility, in one place.
+
+  A NULL owner is the sample corpus the instance ships with, readable by
+  everyone. Everything else belongs to exactly one browser. Every read, delete
+  and search goes through this predicate rather than reimplementing it, because
+  a single query that forgets it is a silent leak of someone's documents.
+*/
+const visibleTo = (ownerId: string) => sql`(owner_id IS NULL OR owner_id = ${ownerId})`;
+
+/** Deletes only what this owner may delete. Silent no-op otherwise, by design:
+ *  reporting "not yours" to a stranger confirms the id exists. */
+export async function deleteDocument(id: string, ownerId: string) {
+  await sql`DELETE FROM documents WHERE id = ${id} AND owner_id = ${ownerId}`;
 }
 
-export async function listDocuments() {
+export async function listDocuments(ownerId: string) {
   return sql`
     SELECT id, title, source_type, source_uri, byte_size, status, stage, progress,
-           error, chunk_count, char_count, metadata, created_at
+           error, chunk_count, char_count, metadata, created_at,
+           (owner_id IS NULL) AS shared
     FROM documents
+    WHERE ${visibleTo(ownerId)}
     ORDER BY created_at DESC
     LIMIT 200
   `;
 }
 
-export async function corpusStats() {
+/**
+ * Every document this owner is allowed to search.
+ *
+ * Retrieval filters by document id, so resolving the permitted set here keeps
+ * the three-arm SQL unchanged and leaves one place where access is decided.
+ */
+export async function searchableDocumentIds(ownerId: string): Promise<string[]> {
+  const rows = await sql<{ id: string }[]>`
+    SELECT id FROM documents WHERE status = 'ready' AND ${visibleTo(ownerId)}
+  `;
+  return rows.map((r) => r.id);
+}
+
+export async function corpusStats(ownerId: string) {
   const [row] = await sql`
     SELECT
-      (SELECT count(*)::int FROM documents WHERE status = 'ready') AS documents,
-      (SELECT count(*)::int FROM chunks) AS chunks,
-      (SELECT coalesce(sum(token_count), 0)::int FROM chunks) AS tokens
+      (SELECT count(*)::int FROM documents
+        WHERE status = 'ready' AND ${visibleTo(ownerId)}) AS documents,
+      (SELECT count(*)::int FROM chunks c
+        WHERE EXISTS (SELECT 1 FROM documents d
+                       WHERE d.id = c.document_id AND ${sql`(d.owner_id IS NULL OR d.owner_id = ${ownerId})`})) AS chunks,
+      (SELECT coalesce(sum(c.token_count), 0)::int FROM chunks c
+        WHERE EXISTS (SELECT 1 FROM documents d
+                       WHERE d.id = c.document_id AND ${sql`(d.owner_id IS NULL OR d.owner_id = ${ownerId})`})) AS tokens
   `;
   return row as { documents: number; chunks: number; tokens: number };
 }

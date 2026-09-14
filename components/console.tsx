@@ -15,6 +15,11 @@ import { CorpusRail, useCorpus, type CorpusStats, type DocumentRow } from "./cor
 import { RetrievalRoundView } from "./passages";
 import { ChannelLegend, TraceStrip } from "./trace";
 
+/** Where a conversation is kept: this browser, and nothing else. */
+const THREAD_KEY = "colophon.thread";
+/** Enough to keep the thread useful without pushing at the storage quota. */
+const THREAD_LIMIT = 30;
+
 interface Extracted {
   text: string;
   trace: TraceSpan[];
@@ -159,9 +164,57 @@ export function Console() {
     [],
   );
 
-  const { messages, sendMessage, status, stop, error } = useChat<ColophonUIMessage>({ transport });
+  const { messages, setMessages, sendMessage, status, stop, error } = useChat<ColophonUIMessage>({
+    transport,
+  });
 
   const streaming = status === "streaming" || status === "submitted";
+
+  /*
+    The conversation lives in this browser and nowhere else.
+
+    The server records the shape of a run for measurement -- stage timings,
+    whether grounding held -- and deliberately not the question or the answer,
+    because a shared instance with no accounts has nowhere to put a transcript
+    that the person who wrote it can see and no one else can. Keeping it here
+    means a reload no longer throws the thread away, and clearing it is the
+    reader's own decision rather than a request to a server.
+
+    Restored after mount rather than in the initial state, so the server and
+    first client render agree. Written back only when a turn is finished: no
+    point storing a half-streamed answer, and it keeps the writes to one per
+    exchange.
+  */
+  const restored = useRef(false);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(THREAD_KEY);
+      if (saved) setMessages(JSON.parse(saved) as ColophonUIMessage[]);
+    } catch {
+      /* unreadable or from an older shape: start clean rather than crash */
+    }
+    restored.current = true;
+  }, [setMessages]);
+
+  useEffect(() => {
+    if (!restored.current || streaming) return;
+    try {
+      if (messages.length === 0) localStorage.removeItem(THREAD_KEY);
+      else localStorage.setItem(THREAD_KEY, JSON.stringify(messages.slice(-THREAD_LIMIT)));
+    } catch {
+      /* quota, or private browsing: the thread simply will not survive a reload */
+    }
+  }, [messages, streaming]);
+
+  function clearThread() {
+    setMessages([]);
+    try {
+      localStorage.removeItem(THREAD_KEY);
+    } catch {
+      /* nothing to remove */
+    }
+  }
+
   const threadRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -232,6 +285,17 @@ export function Console() {
         </dl>
 
         <div className="flex-1" />
+
+        {messages.length > 0 && (
+          <button
+            type="button"
+            onClick={clearThread}
+            title="Delete this conversation from this browser"
+            className="btn btn-bare btn-sm hidden shrink-0 sm:inline-flex"
+          >
+            Clear
+          </button>
+        )}
 
         {/* Reports whether the pipeline is running right now. */}
         <span className="mono hidden items-center gap-2 text-micro text-fg-3 md:flex">
@@ -669,7 +733,12 @@ function EmptyState({
             </div>
           )}
 
-          <dl className="mono mt-8 flex flex-wrap gap-x-6 gap-y-1 text-micro text-fg-3">
+          <p className="mt-8 max-w-[54ch] text-micro leading-relaxed text-fg-3">
+            Documents you add are private to this browser. This conversation is kept here too —
+            never on the server — and Clear removes it.
+          </p>
+
+          <dl className="mono mt-4 flex flex-wrap gap-x-6 gap-y-1 text-micro text-fg-3">
             <div className="flex gap-1.5">
               <dt>documents</dt>
               <dd className="text-fg">{stats.documents}</dd>

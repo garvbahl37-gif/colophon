@@ -1,5 +1,6 @@
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { assertGatewayKey } from "@/lib/ai/models";
+import { databaseHint } from "@/lib/db/client";
 import type { ColophonMode, ColophonUIMessage } from "@/lib/ai/types";
 import { runColophon } from "@/lib/retrieval/orchestrator";
 
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
     // actionable ways (no rerank model on the key, index dimension mismatch,
     // Postgres down) and hiding that behind "An error occurred" wastes the
     // user's time.
-    onError: (error) => (error instanceof Error ? error.message : String(error)),
+    onError: (error) => databaseHint(error),
   });
 
   return createUIMessageStreamResponse({ stream });

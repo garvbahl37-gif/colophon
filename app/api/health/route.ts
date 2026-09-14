@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db/client";
+import { databaseHint, sql } from "@/lib/db/client";
 import { config } from "@/lib/config";
 import { parseSpec, requiredKeyFor } from "@/lib/ai/providers";
 
@@ -14,7 +14,7 @@ export async function GET() {
       detail: meta ? `${meta.value.model} · ${meta.value.dimensions}d` : "schema present",
     };
   } catch (error) {
-    checks.database = { ok: false, detail: (error as Error).message };
+    checks.database = { ok: false, detail: databaseHint(error) };
   }
 
   // Only check for keys the CURRENT routing actually needs. A setup running

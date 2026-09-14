@@ -1,3 +1,4 @@
+import { databaseHint } from "@/lib/db/client";
 import { corpusStats, deleteDocument, listDocuments } from "@/lib/ingest/pipeline";
 
 export async function GET() {
@@ -6,7 +7,7 @@ export async function GET() {
     return Response.json({ documents, stats });
   } catch (error) {
     return Response.json(
-      { error: (error as Error).message, documents: [], stats: { documents: 0, chunks: 0, tokens: 0 } },
+      { error: databaseHint(error), documents: [], stats: { documents: 0, chunks: 0, tokens: 0 } },
       { status: 503 },
     );
   }

@@ -1,6 +1,25 @@
 import postgres from "postgres";
 
-const url = process.env.DATABASE_URL ?? "postgres://localhost:5432/colophon";
+const configured = process.env.DATABASE_URL;
+const url = configured ?? "postgres://localhost:5432/colophon";
+
+/**
+ * Whether DATABASE_URL was actually set.
+ *
+ * Falling back to localhost is right for development and actively misleading
+ * in production, where the resulting "ECONNREFUSED 127.0.0.1:5432" sends people
+ * hunting for a Postgres that was never supposed to be there. Callers use this
+ * to say what is really wrong: the variable is missing.
+ */
+export const hasDatabaseUrl = Boolean(configured);
+
+export function databaseHint(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!hasDatabaseUrl) {
+    return "DATABASE_URL is not set, so the app fell back to localhost. Set it to your Postgres connection string.";
+  }
+  return message;
+}
 
 /**
  * Colophon keeps its tables in their own schema.

@@ -106,6 +106,7 @@ export function createRagTools(ctx: ToolContext) {
           raw = await hybridSearch({
             embedding,
             text: lexical,
+            identifiers: keywords,
             documentIds: documentIds?.length ? documentIds : ctx.documentIds,
           });
         } catch (error) {

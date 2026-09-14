@@ -99,9 +99,15 @@ function normaliseIntent(raw: string): Intent {
 }
 
 /**
- * The lexical arm searches the literal question plus any rare identifiers,
- * repeated so `ts_rank_cd` weights them above the surrounding filler words.
+ * Text for the full-text arm.
+ *
+ * Keywords are appended once, not repeated. The previous version repeated them
+ * "so ts_rank_cd weights them above the filler words", which never worked: the
+ * query is built from `unnest(to_tsvector(...))`, and a tsvector deduplicates
+ * lexemes by construction, so the second and third copies vanished before
+ * ranking. Weighting identifiers is now the identifier arm's job, which
+ * matches them verbatim instead of letting the stemmer take them apart.
  */
 export function lexicalQuery(plan: QueryPlan, subQuery: string): string {
-  return [subQuery, ...plan.keywords, ...plan.keywords].join(" ");
+  return [subQuery, ...plan.keywords].join(" ");
 }

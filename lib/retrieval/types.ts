@@ -15,7 +15,10 @@ export interface Candidate {
   /** Rank/score from the Postgres full-text arm. */
   sparseRank: number | null;
   sparseScore: number | null;
-  /** Weighted Reciprocal Rank Fusion of the two arms. */
+  /** Rank/score from the verbatim-identifier arm. */
+  identRank: number | null;
+  identScore: number | null;
+  /** Weighted Reciprocal Rank Fusion across the arms. */
   rrfScore: number;
   /** Cross-encoder relevance, present only after the rerank stage. */
   rerankScore?: number;

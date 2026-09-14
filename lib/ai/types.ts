@@ -15,6 +15,7 @@ export interface RetrievedPassage {
   sparseScore: number | null;
   denseRank: number | null;
   sparseRank: number | null;
+  identRank: number | null;
   rrfScore: number;
   rerankScore: number | null;
 }

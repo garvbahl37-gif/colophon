@@ -1,84 +1,160 @@
 # Colophon
 
-A retrieval system you can audit. It searches by meaning and by exact wording at
-the same time, reranks with a cross-encoder, cites the passage behind every
-claim, and shows you each stage as it runs.
+**Retrieval-augmented answers you can audit.**
+
+A colophon is the note at the end of a book stating how it was made — the press,
+the paper, the typeface. That is this project's thesis: not just the answer, but
+how it was produced.
+
+Colophon searches by meaning and by exact wording at the same time, reranks what
+comes back, and shows the passage behind every sentence it writes. Every stage
+streams a live trace into the answer it produced, so a disappointing result is
+diagnosable instead of mysterious.
 
 ```bash
 pnpm install
-pnpm db:setup                      # creates the schema, probing the embedder for its width
-pnpm ingest sample-docs/*.md       # or drop files into the UI
-pnpm dev                           # http://localhost:3000
+pnpm db:setup                    # probes the embedder, builds the schema to match
+pnpm ingest sample-docs/*.md
+pnpm dev                         # http://localhost:3000
 ```
 
-`.env.local` needs one key: `OLLAMA_API_KEY`. Embeddings and reranking run
-locally, so there is no second provider to sign up for.
+---
+
+## Contents
+
+- [The pipeline](#the-pipeline)
+- [Retrieval](#retrieval) — three arms, fused in one SQL statement
+- [Ingestion](#ingestion)
+- [Agentic mode](#agentic-mode)
+- [Model routing](#model-routing)
+- [Evaluation](#evaluation) — including results that are not flattering
+- [Security](#security)
+- [Configuration](#configuration)
+- [Design system](#design-system)
+- [Known limits and roadmap](#known-limits-and-roadmap)
 
 ---
 
-A colophon is the note at the end of a book stating how it was made — the press,
-the paper, the typeface. That is this product's thesis: not just the answer, but
-how it was produced.
-
----
-
-## What it does differently
-
-**Hybrid retrieval in one SQL statement.** A pgvector HNSW scan and a Postgres
-full-text scan run as two arms of the same query and are fused by Reciprocal
-Rank Fusion before any row leaves the database. Each arm gets its own `LIMIT`
-inside the query, so Postgres can use the right index for each and only
-materialise the union.
-
-RRF rather than blended scores: cosine distance and `ts_rank_cd` are on
-incomparable scales, and any normalisation between them is a guess that drifts
-with corpus size. Rank position is stable; scores are not.
-
-**The lexical arm uses OR, not AND.** `websearch_to_tsquery` ANDs every term, so
-a five-word question becomes a query no single chunk can satisfy and the lexical
-arm silently returns nothing — leaving "hybrid" search running on one leg. Colophon
-stems the query with `to_tsvector` and ORs the lexemes, the way BM25 scores
-partial matches. On the sample corpus that is the difference between 0 hits and
-7.
-
-**Contextual Retrieval at ingest.** Every chunk gets an LLM-written line
-situating it in its document, prepended before both embedding and full-text
-indexing, so both arms see it. "The limit was raised to 30 seconds" becomes
-findable. Anthropic measured this cutting retrieval failures by up to 49%.
-
-**Agentic retrieval, on top of good retrieval.** In agent mode the model runs its
-own searches: it decomposes, reformulates when a search comes back thin, reads
-around a passage that cuts off mid-explanation, and stops when it can answer.
-Each of its tool calls runs the full hybrid-and-rerank pipeline underneath — an
-agent holding a naive similarity search just produces bad results more slowly.
-
-**A groundedness audit after the fact.** A separate pass checks the finished
-answer against its own sources and names any sentence they do not support. It
-runs after streaming, so it costs the reader nothing.
-
----
-
-## Pipeline
+## The pipeline
 
 ```
 plan ──▶ retrieve ──▶ rerank ──▶ grade ──▶ compress ──▶ generate ──▶ verify
  │          │           │          │          │            │           │
- rewrite    hybrid      cross-     suffic-    MMR +        cited       ground-
- decompose  dense+BM25  encoder    iency      neighbour    answer      edness
- HyDE       RRF in SQL             ↺ re-hop   expansion                audit
+ rewrite    3 arms      cross-     suffic-    MMR +        cited       ground-
+ decompose  RRF in SQL  encoder    iency      neighbour    answer      edness
+ HyDE ×n                           ↺ re-hop   expansion                audit
 ```
 
-Every stage streams a trace part into the same message as the answer, so the
-trace is part of the conversation record rather than ephemeral telemetry.
-
-| Stage | What it fixes |
+| Stage | The failure it exists to prevent |
 |---|---|
-| `plan` | Follow-ups that embed to nothing; multi-part questions where top-k is dominated by the better-represented half |
-| `retrieve` | Vector search missing exact identifiers; lexical search missing paraphrase |
-| `rerank` | Bi-encoders comparing two vectors that never met |
-| `grade` | Answering confidently from a bad first retrieval |
-| `compress` | Eight paraphrases of one paragraph crowding out coverage; chunks too small to generate from |
-| `verify` | Plausible sentences with no passage behind them |
+| `plan` | "What about the second one?" embeds to nothing. A two-part question retrieves whichever half is better represented. |
+| `retrieve` | Vector search cannot find `ERR_Q_0042`. Lexical search cannot find a paraphrase. |
+| `rerank` | Bi-encoders compare two vectors that never met. |
+| `grade` | Answering confidently from a bad first retrieval. |
+| `compress` | Eight paraphrases of one paragraph crowding out coverage. |
+| `generate` | Citations parked at the end of a paragraph instead of against the clause they support. |
+| `verify` | A plausible sentence with no passage behind it. |
+
+---
+
+## Retrieval
+
+### Three arms, fused in one SQL statement
+
+A pgvector HNSW scan, a Postgres full-text scan, and a verbatim identifier scan
+run as three arms of a **single** query and are fused by Reciprocal Rank Fusion
+before any row leaves the database. Each arm gets its own `LIMIT` inside the
+statement, so Postgres uses the right index for each and only materialises the
+union.
+
+**Why rank fusion, not score blending.** Cosine distance and `ts_rank_cd` live
+on incomparable scales, and any normalisation between them is a guess that
+drifts with corpus size. Rank position is stable; scores are not.
+
+**Why the lexical arm uses OR.** `websearch_to_tsquery` ANDs every term, so a
+five-word question becomes a query no chunk can satisfy and the arm silently
+returns nothing — leaving "hybrid" search running on one leg. Colophon stems the
+query with `to_tsvector` (which also drops stopwords and is injection-safe) and
+ORs the lexemes, the way BM25 scores partial matches. On the sample corpus that
+is the difference between 0 hits and 7.
+
+**Why there is a third arm.** English stemming destroys exactly the tokens
+embeddings cannot recover:
+
+```
+ef_search            →  ef | search
+ERR_Q_0042           →  0042 | err | q
+maintenance_work_mem →  mainten | mem | work
+```
+
+So the full-text arm scores a chunk mentioning "search" as highly as one
+containing the actual setting. The identifier arm matches those terms verbatim
+through the trigram index, ranked by how many distinct identifiers a chunk
+contains. It only activates when the query planner extracts identifiers, so
+ordinary questions pay nothing for it.
+
+Measured effect on `"What ef_search should I use when filtering?"`:
+
+| | rank 1 | rank 2 |
+|---|---|---|
+| two arms | Dimension Limits | Tuning ef_search |
+| three arms | **Tuning ef_search** | Dimension Limits |
+
+### After fusion
+
+- **Cross-encoder rerank** reads query and passage together in one forward pass.
+  Inputs are budgeted to ~1400 characters because the window is 512 tokens
+  shared with the query — feeding more means the tokeniser silently drops the
+  tail of every chunk at the stage that decides what the generator sees at all.
+- **MMR diversification** trades a little per-item relevance for coverage.
+- **Small-to-big expansion** reranks on tight chunks, then widens the winners
+  with their neighbours, because reranking and generation want different things.
+- **Attention ordering** puts the strongest passage first and the second
+  strongest last, since long-context models are measurably weaker in the middle.
+
+---
+
+## Ingestion
+
+**Structure-aware chunking.** Splits on headings, code fences and tables first,
+falling back to sentence packing only inside an oversized block. Every chunk
+carries its heading breadcrumb, and PDFs carry a page number.
+
+**Contextual Retrieval.** Each chunk gets an LLM-written line situating it in
+its parent document, prepended before *both* embedding and full-text indexing so
+both arms benefit. "The limit was raised to 30 seconds" is unretrievable until it
+becomes "From the Retry Policy section of the Gateway RFC: the limit was
+raised…". Anthropic measured a 35–49% reduction in retrieval failures. That line
+also reaches the reranker and the generator — dropping it before generation
+means the model has to guess which limit a passage means.
+
+**Formats.** PDF, DOCX, Markdown, HTML, plain text, or a URL. PDF titles are
+derived from embedded metadata or the first real heading, not the filename —
+a UUID-named export would otherwise become a UUID-named document, and that
+string is embedded into every one of its chunks.
+
+---
+
+## Agentic mode
+
+The model runs its own retrieval through `searchCorpus`, `listDocuments` and
+`readSection`. It decomposes, reformulates when a search comes back thin, reads
+around a passage that cuts off mid-explanation, and stops when it can answer.
+
+Each tool call runs the **full** hybrid-and-rerank pipeline underneath. Agency is
+layered on top of good retrieval rather than substituted for it — an agent
+holding a naive similarity search just produces bad results more slowly.
+
+An **evidence ledger** assigns each passage a citation number the first time it
+is seen and keeps it for the whole run, so `[3]` means the same passage whether
+it came from the first search or the fourth.
+
+**A failed search is not an empty corpus.** When retrieval throws, `searchCorpus`
+returns `failed: true` and the agent is instructed to report it. This matters
+more than it sounds: during development, embeddings became unavailable in
+production, search returned nothing, and the model answered *"the sources do not
+specify"* — a confident wrong answer that the groundedness audit **passed**,
+because that sentence is itself perfectly grounded.
 
 ---
 
@@ -87,202 +163,202 @@ trace is part of the conversation record rather than ephemeral telemetry.
 Every stage names its own backend in one environment variable:
 
 ```
-ollama:gpt-oss:120b              Ollama Cloud
-gateway:anthropic/claude-sonnet-5 Vercel AI Gateway
-local:Xenova/bge-base-en-v1.5     in-process ONNX, no key
+ollama:gpt-oss:120b                Ollama Cloud
+gateway:anthropic/claude-sonnet-5  Vercel AI Gateway
+supabase:gte-small                 Supabase Edge Function
+local:Xenova/bge-base-en-v1.5      in-process ONNX (never serverless)
+llm:listwise                       rerank with the grading model
 ```
 
 This exists because no provider is best at all four jobs and some cannot do all
-four at all — Ollama Cloud serves strong tool-calling chat models but exposes no
-embedding or reranking endpoint. The default routing runs generation on Ollama
-and retrieval locally on CPU.
+four at all — Ollama Cloud serves strong tool-calling chat models but exposes
+**no embedding and no reranking endpoint**.
 
 | Stage | Default | Why |
 |---|---|---|
 | Generation | `ollama:gpt-oss:120b` | Strong tool calling, which agent mode depends on |
 | Plan / grade / contextualise | `ollama:gpt-oss:20b` | Small and fast; these run several times per question |
-| Embeddings | `local:Xenova/bge-base-en-v1.5` | 768d, competitive on MTEB retrieval, no key or network hop |
-| Reranking | `local:Xenova/ms-marco-MiniLM-L-6-v2` | A real cross-encoder small enough to run beside the app |
+| Embeddings | `supabase:gte-small` | Runs inside Supabase Edge Runtime — no extra provider, no weights to download on a cold start |
+| Reranking | `llm:listwise` | A listwise pass by a small model, where no cross-encoder can run |
 
-To move the whole thing to hosted frontier models, set `AI_GATEWAY_API_KEY` and
-the six `MODEL_*` variables in `.env.example`, then `pnpm db:reset` (the vector
-column is rebuilt to the new embedder's width).
-
-Two provider quirks are handled in code rather than worked around by the caller:
+### Two provider quirks handled in code
 
 - **gpt-oss spends its output budget on reasoning before emitting content**, so a
-  stage capped at 150 tokens returns an empty string. `fastStageOptions()` sets
-  low reasoning effort and the budgets stay generous.
-- **Ollama accepts `response_format: json_schema` and ignores it** — a request for
-  a plan object comes back as a Markdown table. `lib/ai/structured.ts` expresses
-  the schema as a single forced tool call there instead, and validates the result
-  through Zod either way.
+  stage capped at 150 tokens returns an empty string. `fastStageOptions()` lowers
+  reasoning effort and budgets stay generous.
+- **Ollama accepts `response_format: json_schema` and ignores it** — a request
+  for a plan object comes back as a Markdown table. `lib/ai/structured.ts`
+  expresses the schema as a forced tool call there instead, and validates through
+  Zod either way.
+
+### Why embeddings are not in-process on Vercel
+
+`libonnxruntime.so.1: cannot open shared object file`. The native ONNX binary is
+built for the development machine and excluded from the serverless bundle, so it
+is simply absent. Even where it loads, ~110MB of weights would re-download on
+every cold start. `local:` is for long-lived machines; serverless uses
+`supabase:` or `gateway:`.
 
 ---
 
 ## Evaluation
 
 ```bash
-pnpm eval             # retrieval metrics across four configurations
+pnpm eval             # retrieval metrics across five configurations
 pnpm eval --answers   # also generate answers and score faithfulness
 ```
 
-The harness runs one golden set through vector-only, lexical-only, hybrid, and
-hybrid+rerank so the architecture is measured rather than asserted.
+One golden set runs through vector-only, lexical-only, hybrid, hybrid+rerank, and
+the **full shipped pipeline** — planner, per-sub-query HyDE, cross-query fusion,
+rerank, MMR. The last variant exists because the harness previously embedded
+questions verbatim and never ran the planner at all, so it structurally could not
+detect a bug in decomposition or HyDE. An instrument that cannot see what it is
+measuring is worse than none, because it reads as evidence.
 
-Current result on the 19-chunk sample corpus:
+Current results on the 22-chunk sample corpus:
 
 | configuration | hit@1 | hit@3 | MRR | nDCG@3 | ms |
 |---|---|---|---|---|---|
-| vector only | 0.91 | 1.00 | 0.955 | 0.952 | 22 |
-| lexical only | 0.91 | 0.91 | 0.909 | 0.909 | 8 |
-| hybrid | 0.91 | **1.00** | 0.939 | **0.955** | 8 |
-| hybrid + rerank | 0.82 | 1.00 | 0.909 | 0.926 | 108 |
+| vector only | 0.64 | 1.00 | 0.803 | 0.852 | 1155 |
+| lexical only | **0.91** | 1.00 | **0.939** | **0.955** | 1052 |
+| hybrid | 0.82 | 1.00 | 0.909 | 0.933 | 1125 |
+| hybrid + rerank | 0.82 | 1.00 | 0.909 | 0.933 | 9053 |
+| full pipeline | 0.82 | 1.00 | 0.894 | 0.914 | 15530 |
 
-Read this honestly: **hybrid beats both single arms, and the cross-encoder
-currently does not earn its 86ms.** Two things are going on. The corpus is far
-too small — hit@3 is already saturated at 1.00, so there is no headroom for
-reranking to recover anything, and it can only shuffle results that were already
-right. And `ms-marco-MiniLM-L-6-v2` is a 6-layer model trained on web passages;
-on short technical sections its scores are noisier than the bi-encoder's.
+**Read this honestly: lexical-only currently wins, and the full pipeline is the
+slowest and scores lowest.** Do not take the shipped defaults on faith.
 
-Reranking is left on by default because its value appears at a scale this corpus
-cannot demonstrate — reordering 40 candidates drawn from tens of thousands of
-chunks, not 3 drawn from 19. If you ingest a real corpus and this table still
-shows no lift, turn it off: `MODEL_RERANK=` with a gateway model, or drop
-`RETRIEVAL_RERANK_TOP_N` to bypass the stage. Do not take the default on faith;
-that is what the harness is for.
+Three things are going on, and only the first is reassuring:
+
+1. **The corpus is far too small.** 22 chunks with k=3 means every configuration
+   retrieves a large fraction of it; `hit@3` is saturated at 1.00 for four of the
+   five rows. These numbers mostly measure noise. The harness prints this warning
+   itself.
+2. **The golden set favours lexical matching.** Its questions reuse the source
+   documents' own vocabulary, which is the best case for exact matching and the
+   worst case for measuring what semantic search adds.
+3. **Reranking genuinely is not earning its latency here.** A listwise LLM pass
+   costs ~8s and reorders an already-correct top-3.
+
+The fix is a larger corpus with real distractors and paraphrased questions, not
+a better-sounding table. Until then this is an instrument under construction.
+
+---
+
+## Security
+
+The deployed instance is public and has no user accounts, which drives every
+decision below.
+
+**SSRF.** URL ingestion is a server-side fetch of an attacker-controlled address
+whose body becomes readable through the chat API's passage snippets — a complete
+read primitive. `lib/util/safe-fetch.ts` allows only `http`/`https`, resolves
+**every redirect hop** and rejects private, loopback, link-local and
+carrier-grade-NAT ranges, and caps the body while streaming. Checking only the
+submitted URL would be useless, because a public host can redirect to
+`169.254.169.254`.
+
+**Write protection.** Ingestion runs one LLM call per chunk, so an open endpoint
+is an unmetered bill. `/api/ingest` and `DELETE /api/documents` require
+`COLOPHON_WRITE_TOKEN`; a deployed instance without one refuses writes rather
+than accepting them from strangers. The console asks for the token once and keeps
+it in the browser, because a secret shipped in the bundle is not a secret. Reads
+stay open by design. Chat is rate limited and its caller-supplied message array
+is bounded in both count and size.
+
+**Database.** The app connects as a dedicated least-privilege role that owns only
+its own schema and **cannot reach `public`** — verified, not assumed. RLS is
+enabled with policies scoped to that role, so the schema fails closed if it is
+ever exposed through PostgREST.
+
+---
+
+## Configuration
+
+Everything lives in `lib/config.ts`, read from the environment, documented in
+`.env.example`. The knobs worth reaching for first:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `RETRIEVAL_CANDIDATES` | 40 | Candidates per arm before fusion |
+| `RETRIEVAL_DENSE_WEIGHT` / `_SPARSE_WEIGHT` | 0.5 / 0.5 | Shift toward paraphrase or exact wording |
+| `RETRIEVAL_IDENTIFIER_WEIGHT` | 0.6 | Weight of the verbatim arm; only active when a query has identifiers |
+| `RETRIEVAL_MAX_HOPS` | 2 | Agentic re-retrieval budget. 1 disables self-correction |
+| `RETRIEVAL_MMR_LAMBDA` | 0.72 | 1.0 pure relevance, 0.0 pure diversity |
+| `RETRIEVAL_EF_SEARCH` | 120 | HNSW breadth. Automatically quadrupled under a document filter |
+| `CONTEXTUAL_RETRIEVAL` | true | Situating line per chunk. Off makes ingestion much faster and retrieval worse |
+
+### Scripts
+
+| | |
+|---|---|
+| `pnpm db:setup` | Builds the schema, probing the embedder for its real width |
+| `pnpm db:copy` | Moves a corpus between databases; refuses when embedding widths differ |
+| `pnpm ingest <files\|urls>` | Ingest from the terminal |
+| `pnpm ask <agent\|pipeline> "<question>"` | Run a query with the full trace printed |
+| `pnpm eval [--answers]` | The harness above |
+| `pnpm warm` | Preloads locally-routed models |
 
 ---
 
 ## Design system
 
-**Swiss Modernism 2.0 × Exaggerated Minimalism**, selected from the
-ui-ux-pro-max style catalogue. The rules, and why each is a rule:
+**Swiss Modernism × Exaggerated Minimalism.** A strict 12-column grid, Archivo
+400–900 sized against the viewport, hairline rules instead of cards, zero border
+radius, and a single load-bearing accent.
 
-- **A strict 12-column grid** (`.grid12`). Every element starts and ends on a
-  column line. Alignment does the work that borders and shadows do elsewhere.
-- **Type carries the page.** Archivo 400-900, set tight and large, sized against
-  the viewport (`clamp(2.75rem, 9vw, 8.5rem)`). Archivo rather than Inter
-  because a headline at 8rem has to hold the page on its own.
-- **One accent, load-bearing.** Swiss red `#E5341E` marks the single most
-  important thing in a view and nothing else. No gradients anywhere.
-- **Zero radius, no shadows** on the marketing site. Depth is rules, inversion
-  and negative space.
+Colour is semantic before it is decorative. Jade always means "found by
+meaning", amber always means "found by exact wording", everywhere they appear —
+so a passage meter tells you *which arm found it* at a glance. Both are tuned to
+clear WCAG AA at 12px, because they carry rank labels and not just bar fills.
 
-The landing page and the console run the same system — same grid, same rules,
-same red, same type. The console is the landing page's language applied to a
-working tool, which is why the hero screenshot needs no styling of its own: it
-is a faithful miniature of the real thing.
+Component classes live inside `@layer components`. This is load-bearing:
+defined at the top level, `.btn { display: inline-flex }` beats Tailwind's
+`lg:hidden` and mobile-only controls leak onto desktop.
 
-A dark scope (`.shell-dark` in `app/globals.css`) is defined and unused. Every
-component is written against tokens, so putting that class on the console shell
-flips the whole app to dark without touching a component.
+---
 
-**The retrieval animation** (`components/retrieval-animation.tsx`) is the one
-piece of real motion. It keeps a single set of eight passages on screen and
-lets each stage reorder them, because watching "Timeouts" climb from sixth to
-second the moment the cross-encoder runs explains what a cross-encoder is *for*
-in a way an arrow diagram cannot. Rows translate between slots rather than
-re-rendering, it pauses off-screen, and every rank and score in it is real
-output from the sample corpus.
+## Known limits and roadmap
 
-**Channel colours are data, not decoration.** Jade always means "found by
-meaning", amber always means "found by exact wording", everywhere they appear.
-They darken on paper (`#00875A` / `#B45309`) and brighten on the console
-(`#34D399` / `#FBBF24`) to hold contrast in both scopes.
+Honest about what is not done.
 
-### Separators
+**Measured and unresolved**
+- The eval corpus is too small to distinguish configurations. Needs ~200
+  documents with real distractors and paraphrased questions.
+- Reranking does not currently pay for its latency on this corpus.
 
-Four weights, and picking the right one is most of what makes a dense interface
-feel expensive. Pure black at every boundary is what an editorial page does once
-per section; an app doing it thirty times reads as a wireframe.
+**Architectural gaps**
+- **No per-sub-query quota.** After fusion, a global top-N can leave a
+  comparison with nine chunks from one side and one from the other, and MMR's
+  pool is too small to repair it.
+- **Neighbour expansion can duplicate.** Adjacent winners produce overlapping
+  ranges, so the same paragraph reaches the prompt twice and the model can read
+  it as two independent sources corroborating each other.
+- **No document-level representation.** "What does this RFC propose overall?" is
+  answered from eight similarity-picked fragments, which is a biased sample, not
+  a summary.
+- **No recency or version signal.** Ingest v1 and v2 of the same document and
+  both rank; the answer surfaces a superseded value as a live disagreement.
+- `plan.intent` is computed and used only as a trace label — nothing routes on
+  it.
 
-| Token | Value | Used for |
-|---|---|---|
-| `--color-hairline` | `#F0F0F2` | rows inside a list |
-| `--color-line` | `#E4E4E7` | panel edges, inputs |
-| `--color-line-lit` | `#D0D0D6` | emphasis, hover borders |
-| `--color-rule` | `#0A0A0A` | editorial rules — the landing page only |
+**Operational**
+- Ingestion runs inside the request. A large document can exceed the function
+  timeout, and there is no sweep to mark abandoned rows failed.
+- Rate limiting is per-instance and in-memory, so on serverless the real limit is
+  looser than the number suggests. The write token is what actually protects the
+  expensive paths.
+- `query_log` grows without retention.
 
-The console adds `.shell-app`, which drops the ground to `#FAFAFA` so white
-panels separate themselves by tone rather than by a hard line at every edge.
-
-### Buttons
-
-`.btn` plus a size (`.btn-sm` 32px, `.btn-md` 38px, `.btn-lg` 46px) and an
-intent (`.btn-primary`, `.btn-accent`, `.btn-ghost`, `.btn-bare`). Every state
-is defined — hover, active, focus, disabled — and press feedback is colour plus
-half a pixel of travel rather than a scale transform, so nothing around the
-button moves. `.segmented` / `.segment` is the mode switch.
-
-### Contrast
-
-Every foreground colour is set to clear **WCAG AA at 12px**, because the muted
-greys and both channel colours carry 12px labels, not just bar fills. The
-obvious brighter values all fail at that size:
-
-| Token | Ratio | |
-|---|---|---|
-| `fg` `#0A0A0A` | 19.80:1 | AAA |
-| `fg-2` `#52525B` | 7.73:1 | AAA |
-| `fg-3` `#75757D` | 4.57:1 | AA |
-| `brand` `#E0331D` | 4.51:1 | AA |
-| `jade` `#008458` | 4.53:1 | AA |
-| `amber` `#B45309` | 4.81:1 | AA |
-
-The focus ring is neutral black, not the accent. A red outline on a focused text
-field reads as "invalid value" to every user regardless of what the design
-system means by it.
-
-Text fields opt out of the global ring entirely (`textarea:focus-visible` and
-friends in `globals.css`). The composer is one surface with its own border, and
-a second outline drawn around the textarea inside it produces a box in a box.
-That rule cannot be a `focus:outline-none` utility: everything Tailwind emits is
-inside a layer, and **unlayered CSS beats layered CSS regardless of
-specificity**, so the global ring would win.
-
-Component classes live inside `@layer components` in `app/globals.css`. This is
-load-bearing: defined at the top level, `.btn { display: inline-flex }` wins
-against Tailwind's `lg:hidden` and mobile-only controls leak onto desktop.
-
-## Layout
-
-```
-app/
-  page.tsx              landing (hero, bento grid, pipeline, architecture)
-  app/page.tsx          the console
-  globals.css           design tokens + component layer
-  api/chat              streaming RAG endpoint
-  api/ingest            file + URL ingestion
-lib/
-  ai/          providers, per-stage routing, local ONNX, prompts, structured output
-  agent/       tool definitions, the evidence ledger, the ToolLoopAgent
-  ingest/      loaders, structure-aware chunker, contextualiser, pipeline
-  retrieval/   hybrid SQL, rerank, query planner, MMR, grading, orchestrator
-  db/          client and schema
-evals/         golden set and harness
-```
-
-## Tuning
-
-Everything is in `lib/config.ts`, read from the environment, and documented in
-`.env.example`. The knobs worth reaching for first:
-
-| Variable | Default | Effect |
-|---|---|---|
-| `RETRIEVAL_CANDIDATES` | 40 | Candidates per arm before fusion. Raise for recall, at rerank cost |
-| `RETRIEVAL_DENSE_WEIGHT` / `_SPARSE_WEIGHT` | 0.5 / 0.5 | Shift toward paraphrase or toward exact identifiers |
-| `RETRIEVAL_MAX_HOPS` | 2 | Agentic re-retrieval budget. 1 disables self-correction |
-| `RETRIEVAL_MMR_LAMBDA` | 0.72 | 1.0 pure relevance, 0.0 pure diversity |
-| `RETRIEVAL_EF_SEARCH` | 120 | HNSW breadth. Automatically quadrupled when a document filter is applied |
-| `CONTEXTUAL_RETRIEVAL` | true | Situating context per chunk. Off makes ingestion much faster and retrieval worse |
+---
 
 ## Requirements
 
-PostgreSQL 17 with `pgvector` and `pg_trgm`, Node 20+. On macOS:
+PostgreSQL 17 with `pgvector` and `pg_trgm`, Node 20+.
 
 ```bash
 brew install postgresql@17 pgvector && brew services start postgresql@17
 createdb colophon
 ```
+
+Built with Next.js, the AI SDK, Postgres and pgvector.

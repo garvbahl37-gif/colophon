@@ -35,6 +35,8 @@ export const config = {
     rrfK: num(process.env.RETRIEVAL_RRF_K, 60),
     denseWeight: num(process.env.RETRIEVAL_DENSE_WEIGHT, 0.5),
     sparseWeight: num(process.env.RETRIEVAL_SPARSE_WEIGHT, 0.5),
+    /** Weight of the verbatim-identifier arm. Only active when a query has any. */
+    identifierWeight: num(process.env.RETRIEVAL_IDENTIFIER_WEIGHT, 0.6),
     /** How many survive the cross-encoder. */
     rerankTopN: num(process.env.RETRIEVAL_RERANK_TOP_N, 10),
     /** How many finally reach the generator after MMR + expansion. */

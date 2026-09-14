@@ -42,8 +42,23 @@ export interface HybridOptions {
   limit?: number;
   /** Restrict to a subset of the corpus. */
   documentIds?: string[] | null;
+  /**
+   * Literal identifiers that must match verbatim: function names, error codes,
+   * versions, snake_case symbols.
+   *
+   * These need their own arm because English stemming destroys them —
+   * `to_tsvector` turns `ef_search` into `ef | search`, `ERR_Q_0042` into
+   * `0042 | err | q`, and `maintenance_work_mem` into `mainten | mem | work`.
+   * The full-text arm therefore scores a chunk mentioning "search" as highly
+   * as one containing the actual setting, and the dense arm cannot help
+   * because rare identifiers are exactly what embeddings blur. This is the arm
+   * that finally reads the trigram index the schema has been maintaining on
+   * every write and nothing has ever queried.
+   */
+  identifiers?: string[];
   denseWeight?: number;
   sparseWeight?: number;
+  identifierWeight?: number;
 }
 
 /**
@@ -66,6 +81,8 @@ interface Row {
   dense_score: number | null;
   sparse_rank: number | null;
   sparse_score: number | null;
+  ident_rank: number | null;
+  ident_score: number | null;
   rrf: number;
 }
 
@@ -76,9 +93,17 @@ export async function hybridSearch(opts: HybridOptions): Promise<Candidate[]> {
     candidates = config.retrieval.candidates,
     limit = config.retrieval.candidates,
     documentIds = null,
+    identifiers = [],
     denseWeight = config.retrieval.denseWeight,
     sparseWeight = config.retrieval.sparseWeight,
+    identifierWeight = config.retrieval.identifierWeight,
   } = opts;
+
+  // Only meaningful for terms stemming would mangle; ordinary words are
+  // already handled better by the lexical arm.
+  const exact = identifiers
+    .map((k) => k.trim())
+    .filter((k) => k.length >= 2 && k.length <= 64);
 
   const vtype = await vectorType();
   const filtering = Boolean(documentIds?.length);
@@ -125,19 +150,43 @@ export async function hybridSearch(opts: HybridOptions): Promise<Candidate[]> {
       ORDER BY ts_rank_cd(c.tsv, tsq.q, 32) DESC
       LIMIT $3
     ),
+    -- Verbatim identifier matches. Ranked by how many distinct identifiers a
+    -- chunk contains, so a passage mentioning both ef_search and hnsw
+    -- outranks one mentioning either alone.
+    ident AS (
+      SELECT h.id,
+             row_number() OVER (ORDER BY h.hits DESC, h.id) AS rank,
+             h.hits::float8 AS score
+      FROM (
+        SELECT c.id,
+               (SELECT count(*) FROM unnest($9::text[]) AS kw
+                 WHERE c.content ILIKE '%' || kw || '%')::int AS hits
+        FROM chunks c
+        WHERE cardinality($9::text[]) > 0
+          AND ($4::text[] IS NULL OR c.document_id = ANY($4::text[]))
+      ) h
+      WHERE h.hits > 0
+      ORDER BY h.hits DESC
+      LIMIT $3
+    ),
     fused AS (
       SELECT
-        COALESCE(d.id, s.id) AS id,
+        COALESCE(d.id, s.id, i.id) AS id,
         d.rank AS dense_rank,
         d.score AS dense_score,
         s.rank AS sparse_rank,
         s.score AS sparse_score,
-        ($5 * COALESCE(1.0 / ($7 + d.rank), 0.0)
-       + $6 * COALESCE(1.0 / ($7 + s.rank), 0.0))::float8 AS rrf
+        i.rank AS ident_rank,
+        i.score AS ident_score,
+        ($5  * COALESCE(1.0 / ($7 + d.rank), 0.0)
+       + $6  * COALESCE(1.0 / ($7 + s.rank), 0.0)
+       + $10 * COALESCE(1.0 / ($7 + i.rank), 0.0))::float8 AS rrf
       FROM dense d
       FULL OUTER JOIN sparse s ON d.id = s.id
+      FULL OUTER JOIN ident  i ON i.id = COALESCE(d.id, s.id)
     )
-    SELECT f.id, f.dense_rank, f.dense_score, f.sparse_rank, f.sparse_score, f.rrf,
+    SELECT f.id, f.dense_rank, f.dense_score, f.sparse_rank, f.sparse_score,
+           f.ident_rank, f.ident_score, f.rrf,
            c.document_id, c.ordinal, c.content, c.context, c.heading_path,
            c.page, c.token_count, doc.title AS document_title
     FROM fused f
@@ -156,6 +205,8 @@ export async function hybridSearch(opts: HybridOptions): Promise<Candidate[]> {
     sparseWeight,
     config.retrieval.rrfK,
     limit,
+    exact,
+    exact.length > 0 ? identifierWeight : 0,
   ];
 
   const rows = await sql.begin(async (tx) => {
@@ -190,6 +241,8 @@ function toCandidate(r: Row): Candidate {
     denseScore: num(r.dense_score),
     sparseRank: num(r.sparse_rank),
     sparseScore: num(r.sparse_score),
+    identRank: num(r.ident_rank),
+    identScore: num(r.ident_score),
     rrfScore: num(r.rrf) ?? 0,
   };
 }

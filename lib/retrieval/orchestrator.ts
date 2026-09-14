@@ -108,6 +108,7 @@ function toPassage(c: Candidate, marker: number): RetrievedPassage {
     sparseScore: c.sparseScore,
     denseRank: c.denseRank,
     sparseRank: c.sparseRank,
+    identRank: c.identRank,
     rrfScore: c.rrfScore,
     rerankScore: c.rerankScore ?? null,
   };
@@ -455,6 +456,7 @@ async function runPipeline(args: {
           const candidates = await hybridSearch({
             embedding,
             text: lexicalQuery(plan, subQuery),
+            identifiers: plan.keywords,
             documentIds,
           });
           return { roundId, query: subQuery, candidates };

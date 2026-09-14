@@ -24,6 +24,9 @@ export interface CorpusStats {
 
 const BUSY = new Set(["parsing", "chunking", "contextualizing", "embedding", "indexing", "queued"]);
 
+/** Stages that cannot report a truthful fraction while they are running. */
+const INDETERMINATE = new Set(["contextualizing"]);
+
 /** Human-readable name for each ingest stage, in the interface's own voice. */
 const STAGE_COPY: Record<string, string> = {
   queued: "Waiting",
@@ -263,14 +266,30 @@ export function CorpusRail({
 
                   {busyDoc ? (
                     <>
-                      <div className="mt-1.5 h-[2px] w-full overflow-hidden  bg-line">
-                        <div
-                          className="h-full  bg-jade transition-[width] duration-500"
-                          style={{ width: `${Math.round(doc.progress * 100)}%` }}
-                        />
-                      </div>
+                      {/*
+                        Contextualising a document is one or two model calls
+                        covering every passage at once, so there is no honest
+                        percentage to report while one is in flight -- a bar
+                        parked at 20% for forty seconds reads as a hang. That
+                        stage scans instead, which says "working, duration
+                        unknown", and the stages that can genuinely report
+                        fractions keep the real bar.
+                      */}
+                      {INDETERMINATE.has(doc.status) ? (
+                        <div className="scanning relative mt-1.5 h-[2px] w-full overflow-hidden bg-line" />
+                      ) : (
+                        <div className="mt-1.5 h-[2px] w-full overflow-hidden bg-line">
+                          <div
+                            className="h-full bg-jade transition-[width] duration-500"
+                            style={{ width: `${Math.round(doc.progress * 100)}%` }}
+                          />
+                        </div>
+                      )}
                       <p className="mono mt-1 text-micro text-fg-3">
                         {STAGE_COPY[doc.status] ?? doc.status}
+                        {INDETERMINATE.has(doc.status) && (
+                          <span className="text-line-lit"> · this is the slow part</span>
+                        )}
                       </p>
                     </>
                   ) : failed ? (

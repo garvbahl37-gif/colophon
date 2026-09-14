@@ -111,10 +111,11 @@ async function ingest(
     await setStage(id, "contextualizing", 0.2);
     const contexts = await contextualizeChunks(chunks, doc.text, doc.title, (done, total) => {
       // Progress is cosmetic; a rejected UPDATE here must not become an
-      // unhandled rejection that takes down every other request on the instance.
-      if (done % 10 === 0) {
-        void setStage(id, "contextualizing", 0.2 + 0.4 * (done / total)).catch(() => {});
-      }
+      // unhandled rejection that takes down every other request on the
+      // instance. Reported on every callback rather than every tenth chunk:
+      // chunks now arrive a whole group at a time, so a modulo test could
+      // skip every update a document ever makes.
+      void setStage(id, "contextualizing", 0.2 + 0.4 * (done / total)).catch(() => {});
     });
 
     await setStage(id, "embedding", 0.65);

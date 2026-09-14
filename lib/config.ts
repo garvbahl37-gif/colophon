@@ -68,9 +68,10 @@ export const config = {
     windowChars: num(process.env.CONTEXTUAL_WINDOW_CHARS, 6_000),
     /** Parallel contextualization requests. */
     concurrency: num(process.env.CONTEXTUAL_CONCURRENCY, 8),
-    /** Chunks described per request. One call per chunk re-sent the whole
-        document every time, which is what made ingestion slow. */
-    batchSize: num(process.env.CONTEXTUAL_BATCH_SIZE, 10),
+    /** Chunks described per request. Measured cost per call is roughly
+        11s + 1.2s per chunk, so the per-call overhead dominates and the fewest,
+        largest calls win. Bounded by the output budget, not by preference. */
+    batchSize: num(process.env.CONTEXTUAL_BATCH_SIZE, 28),
   },
 
   embedding: {

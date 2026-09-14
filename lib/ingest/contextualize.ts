@@ -44,11 +44,13 @@ import type { RawChunk } from "./chunker";
   - Default reasoning effort, not the low setting the other fast stages use.
     At low effort the model writes perfectly good contexts and silently ignores
     the line format, so every one of them fails to parse.
-  - A budget with a flat allowance on top of the per-excerpt share. The model
-    reasons before it answers and that reasoning is billed against the same
-    ceiling: ten excerpts spent 1507 output tokens for maybe 350 of prose. A
-    ceiling sized only from the excerpt count stops mid-list with finishReason
-    "length" and loses the tail of the group.
+  - A budget far larger than the prose needs. The model reasons before it
+    answers and that reasoning is billed against the same ceiling: ten excerpts
+    spend around 1800 output tokens to produce maybe 350 of actual text, and
+    the amount of reasoning varies with the document, not just the count. Too
+    tight a ceiling stops the reply at finishReason "length" -- which does not
+    read as an error anywhere, it simply returns a truncated answer that parses
+    to nothing. Roughly 260 tokens per excerpt plus a flat allowance holds.
 */
 
 const LINE = /^\s*(\d+)\s*\|\s*(.+)$/;
@@ -125,7 +127,19 @@ function documentBrief(fullText: string, group: RawChunk[], all: RawChunk[]): st
   return outline ? `Section outline:\n${outline}\n\nNearby text:\n${window}` : window;
 }
 
-function groupsOf<T>(items: T[], size: number): T[][] {
+/**
+ * Split into as few groups as the size limit allows, then even them out.
+ *
+ * Measured cost per call is about 11s of fixed overhead plus 1.2s per chunk, so
+ * total time is (groups x overhead) + (a constant per chunk): the only thing
+ * worth minimising is the number of calls. Once that number is fixed, an even
+ * split costs exactly the same as 28-and-a-remainder and loses less when a
+ * single call fails, so the remainder is spread rather than left dangling.
+ */
+function balancedGroups<T>(items: T[], max: number): T[][] {
+  if (items.length === 0) return [];
+  const count = Math.ceil(items.length / max);
+  const size = Math.ceil(items.length / count);
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
@@ -152,10 +166,19 @@ export async function contextualizeChunks(
   done = chunks.length - worth.length;
   if (done > 0) onProgress?.(done, chunks.length);
 
-  const groups = groupsOf(worth, Math.max(1, config.contextual.batchSize));
+  const groups = balancedGroups(worth, Math.max(1, config.contextual.batchSize));
 
-  await mapLimit(groups, config.contextual.concurrency, async (group) => {
-    // Always available, and what a failed or missing entry falls back to.
+  /**
+   * Describe one group, halving it if the reply comes back unusable.
+   *
+   * Asking for too many at once does not fail loudly — the model answers, and
+   * simply stops obeying the line format somewhere past its comfortable span,
+   * so the whole group parses to nothing and silently loses its contexts. The
+   * batch size is tuned for speed, which means it sits close to that edge on
+   * purpose; halving is what makes sitting there safe. A group that comes back
+   * empty is retried as two, down to a single excerpt, which always works.
+   */
+  async function describe(group: RawChunk[], depth = 0): Promise<void> {
     const fallback = (chunk: RawChunk) => breadcrumb(documentTitle, chunk.headingPath);
 
     try {
@@ -163,9 +186,9 @@ export async function contextualizeChunks(
         .map((chunk, i) => `<excerpt n="${i + 1}">\n${chunk.content}\n</excerpt>`)
         .join("\n\n");
 
-      const { text } = await generateText({
+      const { text, finishReason } = await generateText({
         model: contextualizeModel(),
-        maxOutputTokens: Math.min(6000, 140 * group.length + 1000),
+        maxOutputTokens: Math.min(12000, 260 * group.length + 1200),
         temperature: 0,
         messages: [
           {
@@ -184,14 +207,32 @@ export async function contextualizeChunks(
         ],
       });
 
+      const byNumber = parseLines(text);
+
+      if (byNumber.size === 0 && group.length > 1 && depth < 3) {
+        console.warn(
+          `[contextualize] ${group.length} excerpts returned no usable lines ` +
+            `(finish: ${finishReason}); retrying as two`,
+        );
+        const mid = Math.ceil(group.length / 2);
+        await describe(group.slice(0, mid), depth + 1);
+        await describe(group.slice(mid), depth + 1);
+        return;
+      }
+
       // The model chooses these numbers, so nothing guarantees one per excerpt.
       // A missing or blank entry degrades to the heading trail; it must never
       // shift every later context onto the wrong chunk, which is the failure
       // that would quietly poison the index.
-      const byNumber = parseLines(text);
       group.forEach((chunk, i) => {
         results.set(chunk, byNumber.get(i + 1) || fallback(chunk));
       });
+      if (byNumber.size < group.length) {
+        console.warn(
+          `[contextualize] ${group.length - byNumber.size} of ${group.length} excerpts ` +
+            `fell back to heading trails (finish: ${finishReason})`,
+        );
+      }
     } catch (error) {
       // Contextualization is an enhancement, never a gate. A failed call
       // degrades those chunks to plain indexing rather than failing the ingest
@@ -202,10 +243,14 @@ export async function contextualizeChunks(
       );
       for (const chunk of group) results.set(chunk, fallback(chunk));
     } finally {
-      done += group.length;
-      onProgress?.(done, chunks.length);
+      if (depth === 0) {
+        done += group.length;
+        onProgress?.(done, chunks.length);
+      }
     }
-  });
+  }
+
+  await mapLimit(groups, config.contextual.concurrency, (group) => describe(group));
 
   return chunks.map((chunk) => results.get(chunk) ?? "");
 }

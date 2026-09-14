@@ -3,7 +3,7 @@ import { gateway, rerank } from "ai";
 import { z } from "zod";
 import { config } from "@/lib/config";
 import { fastStageOptions, gradeModel } from "@/lib/ai/models";
-import { isLocal } from "@/lib/ai/providers";
+import { backendOf } from "@/lib/ai/providers";
 import { generateStructured } from "@/lib/ai/structured";
 import type { Candidate } from "./types";
 
@@ -42,9 +42,21 @@ export async function rerankCandidates(
   const documents = candidates.map(asDocument);
 
   try {
-    const ranking = isLocal(config.models.rerank)
-      ? await runLocal(query, documents)
-      : await runHosted(query, documents, topN);
+    const backend = backendOf(config.models.rerank);
+
+    /*
+      `llm:` is a first-class choice, not a failure path. Where no cross-encoder
+      can run — a serverless runtime without the native ONNX libraries, or a
+      gateway without billing — a listwise pass by a small model is the best
+      reranking available, and asking for it explicitly beats letting the real
+      reranker throw on every single query and catching it.
+    */
+    if (backend === "llm") return llmRerank(query, candidates, topN);
+
+    const ranking =
+      backend === "local"
+        ? await runLocal(query, documents)
+        : await runHosted(query, documents, topN);
 
     const scored = ranking
       .map((r) => ({ ...candidates[r.originalIndex], rerankScore: r.score }))
@@ -62,7 +74,7 @@ export async function rerankCandidates(
 
     return {
       candidates: kept,
-      method: isLocal(config.models.rerank) ? "local-cross-encoder" : "cross-encoder",
+      method: backendOf(config.models.rerank) === "local" ? "local-cross-encoder" : "cross-encoder",
       model: config.models.rerank,
     };
   } catch {

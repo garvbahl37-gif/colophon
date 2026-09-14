@@ -11,7 +11,19 @@
  * preference rather than a load-bearing requirement.
  */
 
-const MARKER = /[[［【〔]\s*(\d{1,3})\s*[\]］】〕]/g;
+/*
+  Tolerates every marker shape these models actually emit, not just the one the
+  prompt asks for:
+
+    [1]            what we ask for
+    【1】           gpt-oss reaches for CJK full-width brackets
+    【1†L9-L13】    and sometimes appends an OpenAI-style line range
+    ［1］ 〔1〕      other full-width variants
+
+  Left unhandled, the answer looks cited, the citation panel is empty, and the
+  groundedness audit reports 0% density on a perfectly well-cited answer.
+*/
+const MARKER = /[[［【〔]\s*(\d{1,3})\s*(?:[†‡][^\]］】〕]{0,40})?[\]］】〕]/g;
 
 /** Rewrites every bracket variant to plain ASCII `[n]`. */
 export function normaliseCitationMarkers(text: string): string {

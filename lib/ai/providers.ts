@@ -15,13 +15,15 @@ import { gateway, type EmbeddingModel, type LanguageModel } from "ai";
  *   ollama:gpt-oss:120b                   -> Ollama Cloud
  *   gateway:anthropic/claude-sonnet-5     -> Vercel AI Gateway
  *   anthropic/claude-sonnet-5             -> Vercel AI Gateway (bare = gateway)
- *   local:Xenova/bge-base-en-v1.5         -> in-process ONNX
+ *   local:Xenova/bge-base-en-v1.5         -> in-process ONNX (never serverless)
+ *   supabase:gte-small                    -> Supabase Edge Function
+ *   llm:listwise                          -> rerank with the grading model
  *
  * Each stage is then swappable on its own. Run the agent on Ollama and rerank
  * locally today; move generation to Claude by editing one env var tomorrow.
  */
 
-export type Backend = "ollama" | "gateway" | "local";
+export type Backend = "ollama" | "gateway" | "local" | "supabase" | "llm";
 
 export interface ModelSpec {
   backend: Backend;
@@ -31,7 +33,7 @@ export interface ModelSpec {
   raw: string;
 }
 
-const BACKENDS: Backend[] = ["ollama", "gateway", "local"];
+const BACKENDS: Backend[] = ["ollama", "gateway", "local", "supabase", "llm"];
 
 export function parseSpec(spec: string): ModelSpec {
   const separator = spec.indexOf(":");
@@ -102,5 +104,10 @@ export function requiredKeyFor(spec: string): string | null {
   const { backend } = parseSpec(spec);
   if (backend === "ollama") return "OLLAMA_API_KEY";
   if (backend === "gateway") return "AI_GATEWAY_API_KEY";
+  if (backend === "supabase") return "SUPABASE_PUBLISHABLE_KEY";
   return null;
+}
+
+export function backendOf(spec: string): Backend {
+  return parseSpec(spec).backend;
 }

@@ -1,8 +1,8 @@
 import { embed, embedMany } from "ai";
 import { config } from "@/lib/config";
 import {
+  backendOf,
   embeddingModel as gatewayEmbeddingModel,
-  isLocal,
   languageModel,
   parseSpec,
   requiredKeyFor,
@@ -48,7 +48,15 @@ function hostedProviderOptions(inputType: InputType) {
 }
 
 export async function embedQuery(text: string): Promise<number[]> {
-  if (isLocal(config.models.embed)) {
+  const backend = backendOf(config.models.embed);
+
+  if (backend === "supabase") {
+    const { supabaseEmbed } = await import("./supabase-embed");
+    const [vector] = await supabaseEmbed(config.models.embed, [text]);
+    return vector;
+  }
+
+  if (backend === "local") {
     // Imported here, not at module scope: a hosted deployment must never pull
     // onnxruntime into its bundle for a code path it will not execute.
     const { localEmbed } = await import("./local");
@@ -67,7 +75,14 @@ export async function embedQuery(text: string): Promise<number[]> {
 export async function embedDocuments(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
-  if (isLocal(config.models.embed)) {
+  const backend = backendOf(config.models.embed);
+
+  if (backend === "supabase") {
+    const { supabaseEmbed } = await import("./supabase-embed");
+    return supabaseEmbed(config.models.embed, texts);
+  }
+
+  if (backend === "local") {
     const { localEmbed } = await import("./local");
     const out: number[][] = [];
     // Local inference is CPU-bound, so batches stay small regardless of the

@@ -127,8 +127,13 @@ export function Console() {
       {booting && (
         <Boot onDone={() => setBooting(false)} />
       )}
-      {/* ── Top bar ──────────────────────────────────────────────────────── */}
-      <header className="relative z-30 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-card px-4 sm:px-6">
+      {/* ── Top bar ──────────────────────────────────────────────────────────
+          Swiss masthead rather than an app chrome bar: a wordmark, a hairline
+          rule, and telemetry set in mono. No logo mark — the typography is the
+          identity, and an icon beside a wordmark this heavy only competes with
+          it. The bar reports live state instead of decorating: the indicator
+          tracks whether a query is actually running. */}
+      <header className="relative z-30 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-card px-4 sm:gap-5 sm:px-6">
         <button
           type="button"
           onClick={() => setShowRail((v) => !v)}
@@ -137,27 +142,51 @@ export function Console() {
           Sources
         </button>
 
-        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Colophon home">
-          <Mark />
-          {/* The wordmark is the first thing to go when the bar gets tight;
-              the mark alone still identifies the product. */}
-          <span className="hidden text-lead font-extrabold tracking-[-0.04em] text-fg sm:inline">COLOPHON</span>
+        <Link
+          href="/"
+          className="group flex shrink-0 items-baseline gap-2"
+          aria-label="Colophon home"
+          title="Back to the overview"
+        >
+          <span className="text-lead font-extrabold tracking-[-0.045em] text-fg transition-colors group-hover:text-brand">
+            COLOPHON
+          </span>
         </Link>
-        <span className="mono hidden text-micro text-fg-3 sm:inline">
-          {stats.documents} documents · {stats.chunks.toLocaleString()} passages
-        </span>
+
+        {/* Hairline, not a bullet: it separates without adding a glyph. */}
+        <span aria-hidden className="hidden h-5 w-px shrink-0 bg-line sm:block" />
+
+        <dl className="mono hidden items-baseline gap-4 text-micro sm:flex">
+          <div className="flex items-baseline gap-1.5">
+            <dt className="sr-only">Documents</dt>
+            <dd className="text-fg">{stats.documents}</dd>
+            <span className="text-fg-3">documents</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <dt className="sr-only">Passages</dt>
+            <dd className="text-fg">{stats.chunks.toLocaleString()}</dd>
+            <span className="text-fg-3">passages</span>
+          </div>
+        </dl>
 
         <div className="flex-1" />
 
+        {/* Reports whether the pipeline is running right now. */}
+        <span className="mono hidden items-center gap-2 text-micro text-fg-3 md:flex">
+          <span
+            className={cn(
+              "h-1.5 w-1.5 shrink-0 transition-colors",
+              streaming ? "bg-brand" : "bg-jade",
+            )}
+          />
+          {streaming ? "retrieving" : "ready"}
+        </span>
+
         {/*
-          Two genuinely different retrieval strategies, not a cosmetic setting -
-          so the control states what each one does rather than naming a preset.
+          Two genuinely different retrieval strategies, not a cosmetic setting —
+          so each option carries what it actually does.
         */}
-        <div
-          role="radiogroup"
-          aria-label="Retrieval strategy"
-          className="segmented shrink-0"
-        >
+        <div role="radiogroup" aria-label="Retrieval strategy" className="segmented shrink-0">
           {(
             [
               ["agent", "Agent", "The model runs its own searches and decides when it has enough"],
@@ -361,16 +390,6 @@ export function Console() {
         </aside>
       </div>
     </div>
-  );
-}
-
-function Mark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 22 22" aria-hidden>
-      <path d="M3 5 C 10 5, 8 11, 15 11" fill="none" stroke="#5eeab4" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M3 17 C 10 17, 8 11, 15 11" fill="none" stroke="#ffae5c" strokeWidth="1.8" strokeLinecap="round" />
-      <circle cx="17.5" cy="11" r="2.2" fill="#eceff3" />
-    </svg>
   );
 }
 

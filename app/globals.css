@@ -466,6 +466,57 @@ input[type="checkbox"] {
     padding-left: 1rem;
     color: var(--color-fg-2);
   }
+  /* ── Collapsed panel edges ───────────────────────────────────────────
+     A collapsed panel keeps its edge, its name and its count.
+
+     Folding a rail away entirely leaves a wall with nothing on it, and the
+     reader has to remember the panel existed. A 40px strip costs almost
+     nothing, states what is behind it, and is a target the whole height of the
+     window -- far easier to hit than any icon. The name is set vertically
+     because a horizontal one would force the strip wide enough to defeat the
+     point, and vertical mono type is of a piece with the rest of the interface
+     rather than an apology for the constraint.
+  */
+
+  .edge {
+    width: 40px;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+    padding-block: 1rem;
+    background: var(--color-bg);
+    color: var(--color-fg-3);
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .edge:hover { background: var(--color-bg-2); color: var(--color-fg); }
+  .edge:hover .edge-caret { color: var(--color-brand); }
+
+  .edge-label {
+    writing-mode: vertical-rl;
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .edge-caret {
+    font-size: 15px;
+    line-height: 1;
+    color: var(--color-line-lit);
+    transition: color 140ms ease, transform 140ms ease;
+  }
+  .edge:hover .edge-caret { transform: translateX(1px); }
+
+  /* The matching control inside an open panel. Deliberately quiet: it sits in
+     a header beside a label and should not compete with it. */
+  .collapse-handle {
+    font-size: 15px;
+    line-height: 1;
+    color: var(--color-line-lit);
+    transition: color 140ms ease;
+  }
+  .collapse-handle:hover { color: var(--color-brand); }
+
   /* ── Passage excerpts ────────────────────────────────────────────────
      Evidence, not prose. A retrieved chunk is a fragment of someone else's
      document, so it is set tighter and quieter than an answer: the panel has

@@ -68,12 +68,73 @@ export function Console() {
   const [showRail, setShowRail] = useState(false);
   const [showInstrument, setShowInstrument] = useState(false);
   /*
+    Collapse is a separate idea from the narrow-viewport drawers above.
+
+    Below their breakpoints the rails have nowhere to live and open OVER the
+    conversation; these two say whether a rail takes a column at all on a screen
+    wide enough to hold one. Reading a long grounded answer beside two dense
+    instrument panels is a lot to hold at once, and the panels are reference
+    material -- worth having, not worth staring at.
+
+    Both start expanded so the server and first client render agree; the stored
+    preference is applied immediately after, which is a frame of correction
+    rather than a hydration mismatch.
+  */
+  const [railOpen, setRailOpen] = useState(true);
+  const [instrumentOpen, setInstrumentOpen] = useState(true);
+  /*
     Always starts true so the server and the first client render agree. Reading
     sessionStorage in the initialiser instead produces a hydration mismatch for
     anyone who has already seen the boot screen this session. Boot decides for
     itself whether to play or dismiss immediately.
   */
   const [booting, setBooting] = useState(true);
+
+  useEffect(() => {
+    try {
+      setRailOpen(localStorage.getItem("colophon.railOpen") !== "0");
+      setInstrumentOpen(localStorage.getItem("colophon.instrumentOpen") !== "0");
+    } catch {
+      /* private browsing: both stay open, which is the safe default */
+    }
+  }, []);
+
+  function toggleRail() {
+    setRailOpen((open) => {
+      try {
+        localStorage.setItem("colophon.railOpen", open ? "0" : "1");
+      } catch {
+        /* preference simply will not persist */
+      }
+      return !open;
+    });
+  }
+
+  function toggleInstrument() {
+    setInstrumentOpen((open) => {
+      try {
+        localStorage.setItem("colophon.instrumentOpen", open ? "0" : "1");
+      } catch {
+        /* preference simply will not persist */
+      }
+      return !open;
+    });
+  }
+
+  // Bracket keys frame the conversation the way they frame the layout. Ignored
+  // while typing, or a question containing a bracket would fold the panels.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (event.key === "[") toggleRail();
+      else if (event.key === "]") toggleInstrument();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Read through refs so the transport always sends the current settings
   // without tearing down and rebuilding the chat on every toggle.
@@ -242,6 +303,28 @@ export function Console() {
             )}
           />
         )}
+        {/* Collapsed, the rail keeps its edge and its name. A bare icon button
+            would say a panel exists but not which, and the count is the one
+            fact worth keeping visible when the contents are not. */}
+        {!railOpen && (
+          <button
+            type="button"
+            onClick={toggleRail}
+            title="Show sources  ["
+            aria-label="Show sources"
+            aria-expanded={false}
+            className="edge hidden shrink-0 border-r border-line lg:flex"
+          >
+            <span aria-hidden className="edge-caret">
+              ›
+            </span>
+            <span className="edge-label">Sources</span>
+            <span aria-hidden className="mono text-micro text-fg-3">
+              {documents.length}
+            </span>
+          </button>
+        )}
+
         {/* ── Sources rail ───────────────────────────────────────────────── */}
         <aside
           className={cn(
@@ -251,10 +334,13 @@ export function Console() {
             // conversation lurches sideways to fill the gap.
             showRail
               ? "absolute inset-y-0 left-0 z-20 max-w-[85vw] shadow-2xl lg:static lg:z-auto lg:max-w-none lg:shadow-none"
-              : "hidden lg:block",
+              : railOpen
+                ? "hidden lg:block"
+                : "hidden",
           )}
         >
           <CorpusRail
+            onCollapse={toggleRail}
             documents={documents}
             scope={scope}
             onScopeChange={setScope}
@@ -408,12 +494,26 @@ export function Console() {
             // the whole conversation under it.
             showInstrument
               ? "absolute inset-y-0 right-0 z-20 max-w-[92vw] shadow-2xl xl:static xl:z-auto xl:max-w-none xl:shadow-none"
-              : "hidden xl:block",
+              : instrumentOpen
+                ? "hidden xl:block"
+                : "hidden",
           )}
         >
           <div className="flex h-full flex-col">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3.5">
-              <h2 className="label">Retrieved</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleInstrument}
+                  title="Hide trace  ]"
+                  aria-label="Hide trace"
+                  aria-expanded
+                  className="collapse-handle hidden xl:block"
+                >
+                  ›
+                </button>
+                <h2 className="label">Retrieved</h2>
+              </div>
               <ChannelLegend />
             </div>
 
@@ -431,6 +531,27 @@ export function Console() {
             </div>
           </div>
         </aside>
+
+        {/* Mirror of the Sources strip, on the other edge. The passage count is
+            the fact worth keeping: it says whether there is anything in there. */}
+        {!instrumentOpen && (
+          <button
+            type="button"
+            onClick={toggleInstrument}
+            title="Show trace  ]"
+            aria-label="Show trace"
+            aria-expanded={false}
+            className="edge hidden shrink-0 border-l border-line xl:flex"
+          >
+            <span aria-hidden className="edge-caret rotate-180">
+              ›
+            </span>
+            <span className="edge-label">Retrieved</span>
+            <span aria-hidden className="mono text-micro text-fg-3">
+              {instrument?.rounds.reduce((n, r) => n + r.passages.length, 0) || ""}
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );

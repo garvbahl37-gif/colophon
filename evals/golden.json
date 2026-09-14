@@ -1,0 +1,74 @@
+{
+  "notes": "Each case names the section(s) that genuinely answer the question. A retrieval is correct when a returned passage comes from one of them. `absent` cases have no answer in the corpus at all - the system is scored on refusing rather than on retrieving.",
+  "cases": [
+    {
+      "id": "backoff-formula",
+      "question": "What is the formula for the retry delay?",
+      "relevant": ["Retry Policy"],
+      "mustContain": ["jitter"]
+    },
+    {
+      "id": "delay-cap",
+      "question": "What is the maximum retry delay?",
+      "relevant": ["Retry Policy"],
+      "mustContain": ["30"]
+    },
+    {
+      "id": "breaker-threshold",
+      "question": "How many failures open the circuit breaker?",
+      "relevant": ["Circuit Breaking"],
+      "mustContain": ["20"]
+    },
+    {
+      "id": "breaker-vs-backoff",
+      "question": "How does the retry backoff differ from the circuit breaker timing?",
+      "relevant": ["Retry Policy", "Circuit Breaking"]
+    },
+    {
+      "id": "idempotency",
+      "question": "Which requests will the gateway retry?",
+      "relevant": ["Retry Policy"],
+      "mustContain": ["idempotent"]
+    },
+    {
+      "id": "total-deadline",
+      "question": "What is the overall deadline across all retries?",
+      "relevant": ["Timeouts"],
+      "mustContain": ["60"]
+    },
+    {
+      "id": "why-full-jitter",
+      "question": "Why was equal jitter rejected?",
+      "relevant": ["Rejected Alternatives"]
+    },
+    {
+      "id": "ef-search-filtered",
+      "question": "What ef_search value should I use when filtering to a small subset?",
+      "relevant": ["Tuning ef_search"],
+      "mustContain": ["400"]
+    },
+    {
+      "id": "halfvec",
+      "question": "What do I do above 2000 dimensions?",
+      "relevant": ["Dimension Limits"],
+      "mustContain": ["halfvec"]
+    },
+    {
+      "id": "hnsw-vs-ivfflat",
+      "question": "Why choose HNSW over IVFFlat?",
+      "relevant": ["Choosing an Index Type"]
+    },
+    {
+      "id": "reindex-cost",
+      "question": "How long does reindexing three million chunks take?",
+      "relevant": ["Rebuild Cost"],
+      "mustContain": ["40"]
+    },
+    {
+      "id": "absent-pricing",
+      "question": "What does the gateway cost per million requests?",
+      "relevant": [],
+      "absent": true
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import { generateObject, generateText, tool, type LanguageModel, type ModelMessage } from "ai";
-import type { z } from "zod";
+import { z } from "zod";
 import { parseSpec } from "./providers";
 
 type ProviderOptions = NonNullable<Parameters<typeof generateText>[0]["providerOptions"]>;
@@ -45,11 +45,40 @@ export async function generateStructured<SCHEMA extends z.ZodTypeAny>(options: {
     maxRetries = 1,
   } = options;
 
-  const raw = nativeStructuredOutputs(spec)
-    ? await viaResponseFormat()
-    : await viaToolCall();
+  /*
+    Two attempts, because one strategy is not reliably available.
 
-  const parsed = schema.safeParse(raw);
+    Forced tool calling is the best option on backends without real structured
+    outputs, and gpt-oss refuses it often enough to matter: measured over the
+    eval suite, the query planner fell back to verbatim search on 6 of 11
+    questions, either because no tool call came back at all or because the
+    arguments were missing a required field. Every one of those questions lost
+    its decomposition, its HyDE passages and its keyword extraction, silently,
+    while the pipeline reported success.
+
+    The model is perfectly capable of writing the object; it just will not
+    always route it through the tool API. So a refusal falls back to asking for
+    JSON in the reply and parsing it leniently. That is strictly better than
+    giving up, and it fails loudly if both routes fail.
+  */
+  let raw: unknown;
+  if (nativeStructuredOutputs(spec)) {
+    raw = await viaResponseFormat();
+  } else {
+    try {
+      raw = await viaToolCall();
+    } catch {
+      raw = await viaJsonInText();
+    }
+  }
+
+  let parsed = schema.safeParse(raw);
+  if (!parsed.success && !nativeStructuredOutputs(spec)) {
+    // A tool call that returned a malformed object is the same failure as one
+    // that never arrived; retrying it as prose is worth one more round trip.
+    raw = await viaJsonInText();
+    parsed = schema.safeParse(raw);
+  }
   if (!parsed.success) {
     throw new Error(`Structured output failed validation: ${parsed.error.issues[0]?.message}`);
   }
@@ -92,6 +121,63 @@ export async function generateStructured<SCHEMA extends z.ZodTypeAny>(options: {
     if (!call) throw new Error("Model returned no structured output.");
     return call.input;
   }
+
+  /**
+   * Ask for the object as text and dig it out of whatever comes back.
+   *
+   * Open models wrap JSON in prose, in Markdown fences, or in both, and will
+   * occasionally emit a leading comment. Scanning for the first balanced brace
+   * run handles all three without a parser, and without trusting the model to
+   * have followed the formatting instruction it was just given.
+   */
+  async function viaJsonInText(): Promise<unknown> {
+    const shape = JSON.stringify(z.toJSONSchema(schema as z.ZodType), null, 2);
+    const { text } = await generateText({
+      model,
+      system,
+      prompt: `${prompt ?? ""}\n\nReply with a single JSON object matching this schema, and nothing else — no prose, no code fence:\n${shape}`,
+      temperature,
+      maxOutputTokens,
+      providerOptions,
+      maxRetries,
+    });
+
+    const json = firstJsonObject(text);
+    if (!json) throw new Error("Model returned no parseable object.");
+    return json;
+  }
+}
+
+/** The first complete `{...}` in a string, brace-counted so nesting survives. */
+function firstJsonObject(text: string): unknown {
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') inString = !inString;
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) {
+      try {
+        return JSON.parse(text.slice(start, i + 1));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
 }
 
 /** Backends whose `response_format: json_schema` is actually enforced. */

@@ -112,8 +112,10 @@ export async function probeCache(args: {
       question: row.question,
       ageSeconds: row.age_seconds,
     };
-  } catch {
-    // A cache that cannot be read must never be a cache that breaks answering.
+  } catch (error) {
+    // A cache that cannot be read must never be a cache that breaks answering,
+    // and must not be indistinguishable from a cache that is simply empty.
+    console.warn("[cache] probe failed:", error instanceof Error ? error.message : error);
     return null;
   }
 }
@@ -128,7 +130,12 @@ export async function storeAnswer(args: {
 }): Promise<void> {
   if (!config.cache.enabled || args.documentIds.length === 0) return;
   // An answer that said it could not answer is not worth repeating.
-  if (!args.answer.trim() || args.citations.length === 0) return;
+  if (!args.answer.trim() || args.citations.length === 0) {
+    console.warn(
+      `[cache] not storing: ${args.citations.length} citations, ${args.answer.length} chars`,
+    );
+    return;
+  }
 
   try {
     const embedding = await embedQuery(args.question);
@@ -138,7 +145,16 @@ export async function storeAnswer(args: {
               ${args.answer}, ${sql.json(args.citations as never)}, ${args.mode},
               ${scopeKey(args.documentIds)})
     `;
-  } catch {
-    /* storing is an optimisation; failing to store must not fail the answer */
+  } catch (error) {
+    /*
+      Storing is an optimisation and must never fail the answer -- but it must
+      not fail silently either. A cache that cannot write looks exactly like a
+      cache that is merely cold: honest misses, plausible latency, and no hit
+      ever. That is precisely how this shipped broken once.
+    */
+    console.warn(
+      "[cache] store failed:",
+      error instanceof Error ? error.message : error,
+    );
   }
 }

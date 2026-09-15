@@ -3,6 +3,7 @@ import { assertGatewayKey } from "@/lib/ai/models";
 import { databaseHint } from "@/lib/db/client";
 import { assertWithinRate, guardResponse } from "@/lib/util/guard";
 import type { ColophonMode, ColophonUIMessage } from "@/lib/ai/types";
+import { waitUntil } from "@vercel/functions";
 import { runColophon } from "@/lib/retrieval/orchestrator";
 import { searchableDocumentIds } from "@/lib/ingest/pipeline";
 import { currentOwner } from "@/lib/util/owner";
@@ -101,6 +102,7 @@ export async function POST(req: Request) {
         messages,
         documentIds: scoped,
         ownerId: owner,
+        defer: waitUntil,
         mode,
         writer,
       });

@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS documents (
   source_type   text NOT NULL,
   source_uri    text,
   byte_size     integer NOT NULL DEFAULT 0,
-  checksum      text UNIQUE,
+  checksum      text,
   status        text NOT NULL DEFAULT 'queued',
   stage         text,
   progress      real NOT NULL DEFAULT 0,
@@ -45,6 +45,15 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 
 CREATE INDEX IF NOT EXISTS documents_owner ON documents (owner_id);
+
+-- Uniqueness is per owner, not global. A global unique checksum means the
+-- second person to upload a common file is refused because someone else
+-- already has it -- which breaks their ingest and confirms, to a stranger,
+-- that the document exists in a corpus they cannot read. coalesce() is
+-- load-bearing: NULLs compare distinct in a unique index, so the shared
+-- sample corpus would otherwise admit duplicates.
+CREATE UNIQUE INDEX IF NOT EXISTS documents_owner_checksum
+  ON documents (coalesce(owner_id, ''), checksum);
 
 CREATE TABLE IF NOT EXISTS chunks (
   id            text PRIMARY KEY,

@@ -33,6 +33,15 @@ export interface RunOptions {
   documentIds: string[] | null;
   /** Whose corpus this run may read, and whose cache it may use. */
   ownerId: string;
+  /**
+   * Hands work to the runtime so it outlives the response.
+   *
+   * Storing the answer happens after the last token has streamed, and a
+   * serverless instance is suspended the moment the response closes -- so a
+   * fire-and-forget insert is simply dropped, and the cache stays permanently
+   * empty while appearing to work. Measured: every repeat missed.
+   */
+  defer?: (work: Promise<unknown>) => void;
   mode: ColophonMode;
   writer: Writer;
 }
@@ -264,7 +273,7 @@ export async function runColophon(opts: RunOptions): Promise<void> {
     wrong about later, once the corpus has grown the passage it was missing.
   */
   if (!history) {
-    void storeAnswer({
+    const write = storeAnswer({
       question,
       answer,
       citations,
@@ -272,6 +281,8 @@ export async function runColophon(opts: RunOptions): Promise<void> {
       mode,
       documentIds: documentIds ?? [],
     });
+    if (opts.defer) opts.defer(write.catch(() => {}));
+    else await write;
   }
 
   const latencyMs = Date.now() - startedAt;

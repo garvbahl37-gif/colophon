@@ -144,6 +144,9 @@ function TypedAnswer() {
     if (!node) return;
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // Same: show the finished state rather than typing it out. Only knowable
+      // in the browser, so it necessarily happens after the first render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setN(ANSWER.length);
       return;
     }

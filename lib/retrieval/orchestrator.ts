@@ -151,18 +151,32 @@ export async function runColophon(opts: RunOptions): Promise<void> {
   const history = transcript(messages);
 
   /*
-    Scoped to what this reader may search. Counting every chunk in the table
-    told someone with no documents that the corpus was fine because somebody
-    else had one — and told them a little about that somebody in passing.
+    Scoped to what this reader may search, and specific about why it is empty.
+
+    Counting every chunk in the table told someone with no documents that the
+    corpus was fine because somebody else had one. Counting only ready ones
+    then went too far the other way: a reader who had just added a document and
+    asked a question about it was told the corpus was empty, while it was
+    visibly indexing in the panel beside them. Those are different situations
+    and deserve different sentences.
   */
-  const corpusSize = documentIds?.length ?? 0;
-  if (corpusSize === 0) {
+  if ((documentIds?.length ?? 0) === 0) {
+    const [counts] = await sql<{ pending: number }[]>`
+      SELECT count(*)::int AS pending
+      FROM documents
+      WHERE status NOT IN ('ready', 'failed')
+        AND (owner_id IS NULL OR owner_id = ${opts.ownerId})
+    `;
+    const pending = counts?.pending ?? 0;
     writer.write({
       type: "data-notice",
       data: {
         level: "warning",
         message:
-          "The corpus is empty. Add a document and I will have something to ground answers in.",
+          pending > 0
+            ? `${pending} ${pending === 1 ? "document is" : "documents are"} still being indexed. ` +
+              `Nothing is searchable yet — the panel shows the progress.`
+            : "The corpus is empty. Add a document and I will have something to ground answers in.",
       },
       transient: true,
     });

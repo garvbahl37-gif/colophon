@@ -38,7 +38,6 @@ const searchPath = [schema, "extensions", "public"]
   .join(", ");
 
 declare global {
-  // eslint-disable-next-line no-var
   var __colophonSql: postgres.Sql | undefined;
 }
 

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/util/cn";
 import { breadcrumb } from "@/lib/util/breadcrumb";
 import { plainText } from "@/lib/util/plain-text";
-import type { ColophonMode, ColophonUIMessage, RetrievalRound, RetrievedPassage } from "@/lib/ai/types";
+import type { ColophonMode, ColophonUIMessage, RetrievalRound } from "@/lib/ai/types";
 import type { Citation, GroundingIssue, TraceSpan } from "@/lib/retrieval/types";
 import { Answer, GroundingBadge } from "./answer";
 import { Boot } from "./boot";
@@ -96,7 +96,10 @@ export function Console() {
   const [booting, setBooting] = useState(true);
 
   useEffect(() => {
+    // Reading a browser-only store after mount is the point: the first render
+    // must match the server's, so the preference cannot be known any earlier.
     try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRailOpen(localStorage.getItem("colophon.railOpen") !== "0");
       setInstrumentOpen(localStorage.getItem("colophon.instrumentOpen") !== "0");
     } catch {
@@ -141,26 +144,18 @@ export function Console() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Read through refs so the transport always sends the current settings
-  // without tearing down and rebuilding the chat on every toggle.
-  const modeRef = useRef(mode);
-  const scopeRef = useRef(scope);
-  modeRef.current = mode;
-  scopeRef.current = scope;
+  /*
+    The transport carries no settings of its own.
 
+    It used to read mode and scope through refs assigned during render, so that
+    toggling either did not tear down and rebuild the chat. That works and is
+    unsound: mutating a ref while rendering is a write React may discard, and a
+    render that is thrown away leaves the ref holding a value no state matches.
+    Sending them with the message instead reads them from current state inside
+    an event handler, which is when they are actually known.
+  */
   const transport = useMemo(
-    () =>
-      new DefaultChatTransport<ColophonUIMessage>({
-        api: "/api/chat",
-        prepareSendMessagesRequest: ({ messages, body }) => ({
-          body: {
-            ...body,
-            messages,
-            mode: modeRef.current,
-            documentIds: [...scopeRef.current],
-          },
-        }),
-      }),
+    () => new DefaultChatTransport<ColophonUIMessage>({ api: "/api/chat" }),
     [],
   );
 
@@ -232,7 +227,10 @@ export function Console() {
     // The auto-grow handler writes an inline height; clearing the value does
     // not undo it, so the composer would stay tall after every send.
     if (composerRef.current) composerRef.current.style.height = "auto";
-    void sendMessage({ text: question });
+    void sendMessage(
+      { text: question },
+      { body: { mode, documentIds: [...scope] } },
+    );
     // Ingest can finish while a question is in flight; keep the counters honest.
     void refresh();
   }

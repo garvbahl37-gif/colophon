@@ -58,6 +58,9 @@ export function useCorpus() {
   }, []);
 
   useEffect(() => {
+    // Fetching the corpus is exactly the "subscribe to an external system"
+    // case the rule exists to permit; the state lands in the async callback.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
   }, [refresh]);
 

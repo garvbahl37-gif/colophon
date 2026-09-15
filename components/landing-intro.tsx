@@ -37,12 +37,16 @@ export function LandingIntro() {
     }
     if (reduced || seen) return;
 
+    // Whether this plays is a fact about the browser (session storage, motion
+    // preference) and cannot be known during the server's render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState("playing");
 
     // The flag is written when the intro ENDS, not when it starts. Writing it up
     // front means a double-invoked effect (StrictMode, and any future remount)
     // reads its own flag on the second pass, returns early, and leaves the card
     // on screen with no timer left to take it down.
+    const pending = timers.current;
     const dismiss = () => {
       try {
         sessionStorage.setItem(SEEN_KEY, "1");
@@ -63,7 +67,9 @@ export function LandingIntro() {
     window.addEventListener("wheel", skip, { once: true, passive: true });
 
     return () => {
-      timers.current.forEach(clearTimeout);
+      // Captured now: by the time this runs, timers.current may be a different
+      // array than the one this effect actually filled.
+      pending.forEach(clearTimeout);
       window.removeEventListener("keydown", skip);
       window.removeEventListener("pointerdown", skip);
       window.removeEventListener("wheel", skip);

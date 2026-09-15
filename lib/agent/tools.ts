@@ -198,12 +198,29 @@ export function createRagTools(ctx: ToolContext) {
       inputSchema: z.object({}),
       execute: async () => {
         const id = nextId();
+        /*
+          Scoped to what this reader may see.
+
+          This listed every ready document on the instance. Retrieval was
+          already filtered by owner, so no passage could leak -- but the model
+          would happily read out the TITLES of documents belonging to someone
+          else, which is most of what a document discloses and exactly what
+          somebody probing the corpus would ask for. The permitted set is
+          already in context because searching needs it; listing needs it for
+          the same reason.
+
+          null means unscoped (the CLI). An empty array means nothing is
+          permitted, and `= ANY('{}')` correctly matches no rows -- the same
+          distinction the retrieval layer makes.
+        */
+        const scope = ctx.documentIds;
         const rows = await sql<
           { id: string; title: string; source_type: string; chunk_count: number }[]
         >`
           SELECT id, title, source_type, chunk_count
           FROM documents
           WHERE status = 'ready'
+            ${scope === null ? sql`` : sql`AND id = ANY(${scope})`}
           ORDER BY created_at DESC
           LIMIT 200
         `;

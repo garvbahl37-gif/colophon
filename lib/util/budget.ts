@@ -30,9 +30,14 @@ function dailyChunkBudget(): number {
 export async function assertWithinIngestBudget(): Promise<void> {
   const budget = dailyChunkBudget();
 
-  const [row] = await sql<{ chunks: number; documents: number }[]>`
-    SELECT coalesce(sum(chunk_count), 0)::int AS chunks,
-           count(*)::int                      AS documents
+  /*
+    Deliberately instance-wide: it is a spend ceiling, and the bill is not
+    per-owner. What it reports back is not, though -- an earlier version named
+    how many documents had been added today, which told whoever hit the limit
+    how busy everyone else had been. The ceiling is the only useful half.
+  */
+  const [row] = await sql<{ chunks: number }[]>`
+    SELECT coalesce(sum(chunk_count), 0)::int AS chunks
     FROM documents
     WHERE created_at >= date_trunc('day', now())
   `;
@@ -40,7 +45,7 @@ export async function assertWithinIngestBudget(): Promise<void> {
   const used = row?.chunks ?? 0;
   if (used >= budget) {
     throw new GuardError(
-      `This instance has indexed its daily limit of ${budget} passages (${row?.documents ?? 0} documents today). It resets at midnight UTC.`,
+      `This instance has indexed its daily limit of ${budget} passages. It resets at midnight UTC.`,
       429,
     );
   }

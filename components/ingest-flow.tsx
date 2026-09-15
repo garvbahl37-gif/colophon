@@ -64,6 +64,9 @@ export function IngestFlow() {
     const node = region.current;
     if (!node) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // The motion preference is a browser fact; jumping to the final state is
+      // the whole behaviour, and it cannot be decided before mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setI(STAGES.length - 1);
       return;
     }

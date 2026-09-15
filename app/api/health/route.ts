@@ -1,8 +1,27 @@
 import { databaseHint, sql } from "@/lib/db/client";
 import { config } from "@/lib/config";
 import { parseSpec, requiredKeyFor } from "@/lib/ai/providers";
+import { assertWithinRate, guardResponse } from "@/lib/util/guard";
 
-export async function GET() {
+/*
+  Public and unauthenticated, which is the point: the routing table and the
+  retrieval settings are already in the README, and an instance that will not
+  say how it is configured is not auditable. It reports whether a key is
+  present, never its value.
+
+  It does touch the database, though, so it is rate limited like everything
+  else that does. An endpoint that is cheap for us and free for a stranger to
+  call in a loop is still a way to spend our connection pool.
+*/
+export async function GET(req: Request) {
+  try {
+    assertWithinRate(req, 30, "health");
+  } catch (error) {
+    const refused = guardResponse(error);
+    if (refused) return refused;
+    throw error;
+  }
+
   const checks: Record<string, { ok: boolean; detail: string }> = {};
 
   try {

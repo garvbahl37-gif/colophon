@@ -16,7 +16,7 @@ const t0 = Date.now();
 
 const stream = createUIMessageStream<ColophonUIMessage>({
   execute: async ({ writer }) => {
-    await runColophon({ question, messages, documentIds: null, mode, writer });
+    await runColophon({ question, messages, documentIds: null, ownerId: "cli", mode, writer });
   },
   onError: (e) => { console.error("\n[STREAM ERROR]", e instanceof Error ? e.message : e); return String(e); },
 });

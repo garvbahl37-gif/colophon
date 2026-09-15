@@ -74,6 +74,11 @@ export const config = {
     batchSize: num(process.env.CONTEXTUAL_BATCH_SIZE, 28),
   },
 
+  cache: {
+    /** Semantic answer cache. See lib/retrieval/cache.ts. */
+    enabled: bool(process.env.SEMANTIC_CACHE, true),
+  },
+
   embedding: {
     dimensions: num(process.env.EMBEDDING_DIMENSIONS, 768),
     /** Batch size for embedMany at ingest. */

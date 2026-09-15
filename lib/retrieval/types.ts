@@ -29,7 +29,9 @@ export interface Candidate {
 }
 
 export type TraceStage =
+  | "cache"
   | "plan"
+  | "route"
   | "retrieve"
   | "rerank"
   | "grade"

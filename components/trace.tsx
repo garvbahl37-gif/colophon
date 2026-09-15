@@ -14,7 +14,9 @@ import type { TraceSpan, TraceStage } from "@/lib/retrieval/types";
  */
 
 const STAGE_LABEL: Record<TraceStage, string> = {
+  cache: "cache",
   plan: "plan",
+  route: "route",
   retrieve: "retrieve",
   rerank: "rerank",
   grade: "grade",
@@ -25,17 +27,21 @@ const STAGE_LABEL: Record<TraceStage, string> = {
 
 /** Causal position of each stage in the pipeline. */
 const STAGE_ORDER: Record<TraceStage, number> = {
-  plan: 0,
-  retrieve: 1,
-  rerank: 2,
-  grade: 3,
-  compress: 4,
-  generate: 5,
-  verify: 6,
+  cache: 0,
+  plan: 1,
+  route: 2,
+  retrieve: 3,
+  rerank: 4,
+  grade: 5,
+  compress: 6,
+  generate: 7,
+  verify: 8,
 };
 
 const STAGE_TINT: Record<TraceStage, string> = {
+  cache: "text-jade",
   plan: "text-fg-2",
+  route: "text-brand",
   retrieve: "text-jade",
   rerank: "text-fused",
   grade: "text-fg-2",

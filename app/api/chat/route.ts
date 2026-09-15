@@ -100,6 +100,7 @@ export async function POST(req: Request) {
         question,
         messages,
         documentIds: scoped,
+        ownerId: owner,
         mode,
         writer,
       });

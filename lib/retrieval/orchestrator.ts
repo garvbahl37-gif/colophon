@@ -7,13 +7,15 @@ import { nanoid } from "nanoid";
 import { config } from "@/lib/config";
 import { sql } from "@/lib/db/client";
 import { embedQuery, generateModel } from "@/lib/ai/models";
-import { ANSWER_SYSTEM, answerPrompt } from "@/lib/ai/prompts";
+import { ANSWER_SYSTEM, answerPrompt, countSuspicious } from "@/lib/ai/prompts";
 import type {
   ColophonMode,
   ColophonUIMessage,
   RetrievedPassage,
 } from "@/lib/ai/types";
 import { createRagAgent } from "@/lib/agent/rag-agent";
+import { chooseStrategy, type Strategy } from "./router";
+import { probeCache, storeAnswer, type CacheHit } from "./cache";
 import { EvidenceLedger } from "@/lib/agent/ledger";
 import type { ToolEvent } from "@/lib/agent/tools";
 import { diversify, fitBudget, orderForAttention } from "./compress";
@@ -29,6 +31,8 @@ export interface RunOptions {
   question: string;
   messages: ColophonUIMessage[];
   documentIds: string[] | null;
+  /** Whose corpus this run may read, and whose cache it may use. */
+  ownerId: string;
   mode: ColophonMode;
   writer: Writer;
 }
@@ -137,9 +141,12 @@ export async function runColophon(opts: RunOptions): Promise<void> {
   const ledger = new EvidenceLedger();
   const history = transcript(messages);
 
-  const [{ count: corpusSize }] = await sql<{ count: number }[]>`
-    SELECT count(*)::int AS count FROM chunks
-  `;
+  /*
+    Scoped to what this reader may search. Counting every chunk in the table
+    told someone with no documents that the corpus was fine because somebody
+    else had one — and told them a little about that somebody in passing.
+  */
+  const corpusSize = documentIds?.length ?? 0;
   if (corpusSize === 0) {
     writer.write({
       type: "data-notice",
@@ -150,6 +157,62 @@ export async function runColophon(opts: RunOptions): Promise<void> {
       },
       transient: true,
     });
+  }
+
+  /*
+    Ask whether this has already been answered before answering it.
+
+    The probe costs one embedding — no model call, no retrieval — against a
+    pipeline whose cheapest path is many seconds of generation. It runs on the
+    raw question rather than the planner's rewrite because the planner is
+    itself a model call, and waiting for it to decide whether we can skip the
+    work would spend most of what a hit is worth. The cost of that shortcut is
+    that a follow-up leaning on the conversation ("what about the second one?")
+    must not be matched against a cache that cannot see the history, so a
+    question with history behind it is never served from cache.
+  */
+  const cached: CacheHit | null = history
+    ? null
+    : await trace.span("cache", "semantic lookup", async (update) => {
+        const hit = await probeCache({
+          question,
+          ownerId: opts.ownerId,
+          mode,
+          documentIds: documentIds ?? [],
+        });
+        update({
+          detail: hit
+            ? `matched "${hit.question}"`
+            : "no sufficiently similar question answered before",
+          metrics: hit
+            ? {
+                similarity: Number(hit.similarity.toFixed(3)),
+                age: `${Math.round(hit.ageSeconds)}s`,
+              }
+            : { similarity: "—" },
+        });
+        return hit;
+      });
+
+  if (cached) {
+    writer.write({ type: "text-start", id: "cached" });
+    writer.write({ type: "text-delta", id: "cached", delta: cached.answer });
+    writer.write({ type: "text-end", id: "cached" });
+    writer.write({ type: "data-citations", data: cached.citations });
+    writer.write({
+      type: "data-notice",
+      data: {
+        level: "info",
+        message:
+          `Answered from cache — the same question, asked ${Math.round(cached.ageSeconds)}s ago ` +
+          `against the same documents. Rephrase or add a document to force a fresh run.`,
+      },
+    });
+    writer.write({
+      type: "message-metadata",
+      messageMetadata: { latencyMs: Date.now() - startedAt, mode, model: "cache" },
+    });
+    return;
   }
 
   const answer =
@@ -191,6 +254,23 @@ export async function runColophon(opts: RunOptions): Promise<void> {
         },
       });
       writer.write({ type: "data-grounding", data: verdict });
+    });
+  }
+
+  /*
+    Kept only if it is worth repeating: a single-turn question, over a known
+    document set, that actually produced cited prose. An answer saying the
+    sources do not cover something is cheap to regenerate and expensive to be
+    wrong about later, once the corpus has grown the passage it was missing.
+  */
+  if (!history) {
+    void storeAnswer({
+      question,
+      answer,
+      citations,
+      ownerId: opts.ownerId,
+      mode,
+      documentIds: documentIds ?? [],
     });
   }
 
@@ -442,6 +522,28 @@ async function runPipeline(args: {
     });
   }
 
+  /*
+    Decide how hard to search before searching, and say so in the trace.
+
+    This is a visible stage rather than a hidden optimisation on purpose: it
+    changes which passages reach the answer, so a reader debugging a
+    disappointing result needs to see that a lookup skipped the reranker as
+    readily as they can see what the reranker did.
+  */
+  const strategy: Strategy = await trace.span("route", "adaptive strategy", async (update) => {
+    const chosen = chooseStrategy(plan, plan.standalone);
+    update({
+      detail: chosen.because,
+      metrics: {
+        route: chosen.route,
+        candidates: chosen.candidates,
+        rerank: chosen.rerank ? "yes" : "skipped",
+        hyde: chosen.hyde ? "yes" : "off",
+      },
+    });
+    return chosen;
+  });
+
   let searchQueries = plan.subQueries;
   let selected: Candidate[] = [];
 
@@ -470,7 +572,7 @@ async function runPipeline(args: {
           // Each sub-query uses its OWN hypothetical — sharing one across all
           // of them collapses decomposition back to a single dense query, and
           // cross-query RRF then doubles the identical rows it returns.
-          const hyde = hop === 0 ? (plan.hypotheticals[qi] ?? "") : "";
+          const hyde = hop === 0 && strategy.hyde ? (plan.hypotheticals[qi] ?? "") : "";
           const vectorText = hyde || subQuery;
           const embedding = await embedQuery(vectorText);
           const candidates = await hybridSearch({
@@ -478,6 +580,9 @@ async function runPipeline(args: {
             text: lexicalQuery(plan, subQuery),
             identifiers: plan.keywords,
             documentIds,
+            candidates: strategy.candidates,
+            denseWeight: strategy.denseWeight,
+            sparseWeight: strategy.sparseWeight,
           });
           return { roundId, query: subQuery, candidates };
         }),
@@ -499,8 +604,19 @@ async function runPipeline(args: {
 
     const reranked = await trace.span(
       "rerank",
-      "cross-encoder",
+      strategy.rerank ? "cross-encoder" : "skipped",
       async (update) => {
+        if (!strategy.rerank) {
+          // Fusion already ordered these. Reporting the skip with its reason
+          // keeps the trace honest about why no scores appear downstream.
+          const kept = fused.merged.slice(0, config.retrieval.rerankTopN);
+          update({
+            detail: strategy.because,
+            metrics: { in: fused.merged.length, out: kept.length, top: "n/a" },
+          });
+          return kept;
+        }
+
         const { candidates, method, model } = await rerankCandidates(
           plan.standalone,
           fused.merged,
@@ -605,6 +721,28 @@ async function runPipeline(args: {
   // Re-register post-MMR so markers match what the generator actually saw.
   const finalLedger = ledger.register(context);
   const renumbered = finalLedger.map((c) => ({ ...c }));
+
+  /*
+    Say so when a passage tried to give orders.
+
+    The model is told to treat source text as quoted material, and the prompt
+    neutralises the delimiters, but neither of those is visible to the person
+    reading the answer. A corpus is only auditable if the reader learns that
+    something in it was arguing with the system -- that is a fact about their
+    documents worth knowing, whoever put it there.
+  */
+  const suspicious = countSuspicious(renumbered);
+  if (suspicious > 0) {
+    writer.write({
+      type: "data-notice",
+      data: {
+        level: "warning",
+        message:
+          `${suspicious} of ${renumbered.length} passages contain instruction-like text. ` +
+          `They were passed to the model as quoted evidence, not as instructions.`,
+      },
+    });
+  }
 
   return trace.span("generate", config.models.generate, async (update) => {
     const result = streamText({

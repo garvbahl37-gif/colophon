@@ -101,6 +101,25 @@ CREATE TABLE IF NOT EXISTS query_log (
 );
 CREATE INDEX IF NOT EXISTS query_log_created ON query_log (created_at DESC);
 
+-- Answers already produced, matched by meaning rather than by string.
+-- Scoped by owner, mode and the exact set of documents that were searchable,
+-- so a corpus change invalidates it without a sweeper. No HNSW index: a single
+-- owner's cache is small enough that a scan beats index maintenance.
+CREATE TABLE IF NOT EXISTS answer_cache (
+  id          text PRIMARY KEY,
+  owner_id    text NOT NULL,
+  question    text NOT NULL,
+  embedding   ${column},
+  answer      text NOT NULL,
+  citations   jsonb NOT NULL DEFAULT '[]'::jsonb,
+  mode        text NOT NULL,
+  scope_key   text NOT NULL,
+  hits        integer NOT NULL DEFAULT 0,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS answer_cache_lookup
+  ON answer_cache (owner_id, mode, scope_key);
+
 -- Records the dimension the tables were actually built for.
 CREATE TABLE IF NOT EXISTS index_meta (
   key   text PRIMARY KEY,

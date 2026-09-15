@@ -99,6 +99,32 @@ async function main() {
   const { column, ops } = vectorType(dimensions);
   ok(`Schema applied ${dim(`${column} · ${ops} · hnsw`)}`);
 
+  /*
+    Row-level security, applied here rather than by hand.
+
+    The deployed database had RLS enabled on every table with a policy for the
+    application role -- applied out of band, so the repository could not
+    reproduce it and a table added later simply did not get one. That is not a
+    hypothetical: answer_cache shipped with RLS on and no policy, so every
+    insert was denied and the cache looked merely cold for a whole release.
+
+    The policy names the CURRENT role rather than a hardcoded one, so it is
+    correct for whichever least-privilege user the deployment actually
+    connects as. Fails closed and loudly: a database where this cannot be
+    applied is one where the next table will silently be unreadable too.
+  */
+  const [{ current_user: role }] = await sql<{ current_user: string }[]>`SELECT current_user`;
+  const TABLES = ["documents", "chunks", "query_log", "answer_cache", "index_meta"];
+  for (const table of TABLES) {
+    await sql.unsafe(`ALTER TABLE ${schema}.${table} ENABLE ROW LEVEL SECURITY`);
+    await sql.unsafe(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${schema}.${table} TO "${role}"`);
+    await sql.unsafe(`DROP POLICY IF EXISTS app_all ON ${schema}.${table}`);
+    await sql.unsafe(
+      `CREATE POLICY app_all ON ${schema}.${table} FOR ALL TO "${role}" USING (true) WITH CHECK (true)`,
+    );
+  }
+  ok(`Row-level security enabled ${dim(`${TABLES.length} tables · policy for ${role}`)}`);
+
   await sql`
     INSERT INTO index_meta (key, value)
     VALUES ('embedding', ${sql.json({ model: config.models.embed, dimensions })})

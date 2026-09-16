@@ -33,6 +33,12 @@ CREATE TABLE IF NOT EXISTS documents (
   source_uri    text,
   byte_size     integer NOT NULL DEFAULT 0,
   checksum      text,
+  -- Version lineage. Re-ingesting the same source with different content makes
+  -- a new row rather than mutating this one, so the old text stays readable and
+  -- citations already given out keep resolving. See lib/ingest/versions.ts.
+  version       integer NOT NULL DEFAULT 1,
+  supersedes    text,
+  superseded_by text,
   status        text NOT NULL DEFAULT 'queued',
   stage         text,
   progress      real NOT NULL DEFAULT 0,
@@ -54,6 +60,11 @@ CREATE INDEX IF NOT EXISTS documents_owner ON documents (owner_id);
 -- sample corpus would otherwise admit duplicates.
 CREATE UNIQUE INDEX IF NOT EXISTS documents_owner_checksum
   ON documents (coalesce(owner_id, ''), checksum);
+
+-- Finding the current version of a source is the hot path for re-ingestion.
+CREATE INDEX IF NOT EXISTS documents_current_source
+  ON documents (coalesce(owner_id, ''), source_uri)
+  WHERE superseded_by IS NULL;
 
 CREATE TABLE IF NOT EXISTS chunks (
   id            text PRIMARY KEY,

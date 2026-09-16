@@ -65,14 +65,14 @@ export function TraceStrip({ spans, totalMs }: { spans: TraceSpan[]; totalMs?: n
 
   return (
     <div className="panel">
-      <div className="flex items-baseline justify-between border-b border-white/6 px-3 py-1.5">
+      <div className="flex items-baseline justify-between border-b border-line px-3 py-1.5">
         <span className="label">Pipeline</span>
         {totalMs != null && (
           <span className="mono text-micro text-fg-3">{(totalMs / 1000).toFixed(2)}s</span>
         )}
       </div>
 
-      <ol className="divide-y divide-white/6">
+      <ol className="divide-y divide-hairline">
         {ordered.map((span) => (
           <li
             key={span.id}
@@ -105,11 +105,11 @@ export function TraceStrip({ spans, totalMs }: { spans: TraceSpan[]; totalMs?: n
 
             {/* Latency, relative to the slowest stage in this run. */}
             {span.ms != null && span.status !== "running" && (
-              <div className="mt-1 ml-[6rem] h-[2px] overflow-hidden rounded-full bg-white/6">
+              <div className="mt-1 ml-[6rem] h-[2px] overflow-hidden rounded-full bg-line">
                 <div
                   className={cn(
                     "h-full rounded-full transition-[width] duration-500",
-                    span.status === "error" ? "bg-alert" : "bg-line",
+                    span.status === "error" ? "bg-alert" : "bg-fg-3",
                   )}
                   style={{ width: `${Math.max(2, (span.ms / slowest) * 100)}%` }}
                 />

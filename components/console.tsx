@@ -11,6 +11,7 @@ import type { ColophonMode, ColophonUIMessage, RetrievalRound } from "@/lib/ai/t
 import type { Citation, Contradiction, GroundingIssue, TraceSpan } from "@/lib/retrieval/types";
 import { Answer, GroundingBadge } from "./answer";
 import { Boot } from "./boot";
+import { Coverage } from "./coverage";
 import { CorpusRail, useCorpus, type CorpusStats, type DocumentRow } from "./corpus";
 import { RetrievalRoundView } from "./passages";
 import { ChannelLegend, TraceStrip } from "./trace";
@@ -481,6 +482,14 @@ export function Console() {
                       {data.citations.length > 0 && (
                         <CitationList citations={data.citations} />
                       )}
+
+                      {data.citations.length > 0 && data.text && (
+                        <Coverage
+                          answer={data.text}
+                          citations={data.citations}
+                          onCite={() => setShowInstrument(true)}
+                        />
+                      )}
                     </div>
                   );
                 })}
@@ -631,7 +640,7 @@ export function Console() {
 
 function CitationList({ citations }: { citations: Citation[] }) {
   return (
-    <ol className="space-y-1 border-t border-white/6 pt-2.5">
+    <ol className="space-y-1 border-t border-hairline pt-2.5">
       {citations.map((c) => (
         <li key={c.marker} className="flex gap-2 text-micro">
           <span className="mono shrink-0 text-brand-3">[{c.marker}]</span>

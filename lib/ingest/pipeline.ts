@@ -5,6 +5,7 @@ import { embedDocuments } from "@/lib/ai/models";
 import { loadFile, loadUrl, type LoadedDocument } from "./loaders";
 import { chunkDocument } from "./chunker";
 import { buildIndexedText, contextualizeChunks } from "./contextualize";
+import { compareVersions, describeChange, type VersionChange } from "./versions";
 
 export type IngestStage =
   | "queued"
@@ -75,15 +76,41 @@ async function ingest(
     await sql`DELETE FROM documents WHERE id = ${existing.id}`;
   }
 
+  /*
+    Is this a new version of something already here?
+
+    Identity is the source it came from, not its bytes: the same URL fetched a
+    month later, or the same filename uploaded again, is the same document with
+    different content. Matching on checksum can only ever say "identical", which
+    is the one case that needs no work.
+
+    The old row is kept and marked superseded rather than updated in place.
+    Citations already handed to a reader keep resolving, the previous text stays
+    readable, and "what changed" remains answerable -- none of which survives
+    overwriting a row.
+  */
+  const [previous] = opts.sourceUri
+    ? await sql<{ id: string; version: number }[]>`
+        SELECT id, version FROM documents
+        WHERE source_uri = ${opts.sourceUri}
+          AND owner_id IS NOT DISTINCT FROM ${opts.ownerId}
+          AND superseded_by IS NULL
+          AND status = 'ready'
+        ORDER BY version DESC
+        LIMIT 1
+      `
+    : [];
+
   const id = nanoid(12);
   await sql`
     INSERT INTO documents
       (id, owner_id, title, source_type, source_uri, byte_size, checksum, status, stage,
-       char_count, metadata)
+       char_count, metadata, version, supersedes)
     VALUES
       (${id}, ${opts.ownerId}, ${doc.title}, ${doc.sourceType}, ${opts.sourceUri ?? null},
        ${opts.byteSize}, ${opts.checksum}, 'parsing', 'parsing', ${doc.text.length},
-       ${sql.json(doc.metadata as never)})
+       ${sql.json(doc.metadata as never)},
+       ${(previous?.version ?? 0) + 1}, ${previous?.id ?? null})
   `;
 
   /*
@@ -155,10 +182,35 @@ async function ingest(
       await sql`INSERT INTO chunks ${sql(rows)}`;
     }
 
+    /*
+      Retire the predecessor only now, after this version is genuinely
+      searchable. Doing it at insert time would leave the corpus with nothing
+      at all for this source during the minutes ingestion takes, and with
+      nothing permanently if it failed.
+    */
+    let change: VersionChange | null = null;
+    if (previous) {
+      const old = await sql<{ heading_path: string[]; content: string }[]>`
+        SELECT heading_path, content FROM chunks
+        WHERE document_id = ${previous.id} ORDER BY ordinal
+      `;
+      change = compareVersions(
+        old.map((r) => ({ headingPath: r.heading_path, content: r.content })),
+        chunks,
+      );
+      await sql`
+        UPDATE documents SET superseded_by = ${id}, updated_at = now()
+        WHERE id = ${previous.id}
+      `;
+    }
+
     await sql`
       UPDATE documents
       SET status = 'ready', stage = 'ready', progress = 1,
-          chunk_count = ${chunks.length}, updated_at = now()
+          chunk_count = ${chunks.length}, updated_at = now(),
+          metadata = metadata || ${sql.json(
+            (change ? { change: { ...change, summary: describeChange(change) } } : {}) as never,
+          )}
       WHERE id = ${id}
     `;
 
@@ -226,19 +278,52 @@ export async function ingestUrl(
 */
 const visibleTo = (ownerId: string) => sql`(owner_id IS NULL OR owner_id = ${ownerId})`;
 
+/*
+  Superseded versions are kept, not searched. Leaving them in retrieval is how a
+  corpus starts answering with text its own source has already replaced -- and
+  worse, answering with both, correctly cited, as a contradiction the reader has
+  to adjudicate. They stay addressable so old citations still resolve.
+*/
+const current = sql`superseded_by IS NULL`;
+
 /** Deletes only what this owner may delete. Silent no-op otherwise, by design:
  *  reporting "not yours" to a stranger confirms the id exists. */
 export async function deleteDocument(id: string, ownerId: string) {
-  await sql`DELETE FROM documents WHERE id = ${id} AND owner_id = ${ownerId}`;
+  /*
+    Removing a document removes its history with it.
+
+    The reader asked to remove a document, not a revision -- leaving earlier
+    versions behind would keep the text in the database, out of search, and
+    impossible to find or remove through the interface. Anything with the same
+    source for the same owner goes, which is exactly the set the version chain
+    was built from. A row with no source_uri has no lineage and deletes alone.
+  */
+  const [target] = await sql<{ source_uri: string | null }[]>`
+    SELECT source_uri FROM documents WHERE id = ${id} AND owner_id = ${ownerId}
+  `;
+  if (!target) return;
+
+  if (target.source_uri) {
+    await sql`
+      DELETE FROM documents
+      WHERE owner_id = ${ownerId} AND source_uri = ${target.source_uri}
+    `;
+  } else {
+    await sql`DELETE FROM documents WHERE id = ${id} AND owner_id = ${ownerId}`;
+  }
 }
 
 export async function listDocuments(ownerId: string) {
   return sql`
     SELECT id, title, source_type, source_uri, byte_size, status, stage, progress,
-           error, chunk_count, char_count, metadata, created_at,
-           (owner_id IS NULL) AS shared
+           error, chunk_count, char_count, metadata, created_at, version,
+           (owner_id IS NULL) AS shared,
+           (SELECT count(*)::int FROM documents older
+             WHERE older.superseded_by IS NOT NULL
+               AND older.source_uri = documents.source_uri
+               AND older.owner_id IS NOT DISTINCT FROM documents.owner_id) AS prior_versions
     FROM documents
-    WHERE ${visibleTo(ownerId)}
+    WHERE ${visibleTo(ownerId)} AND ${current}
     ORDER BY created_at DESC
     LIMIT 200
   `;
@@ -252,7 +337,8 @@ export async function listDocuments(ownerId: string) {
  */
 export async function searchableDocumentIds(ownerId: string): Promise<string[]> {
   const rows = await sql<{ id: string }[]>`
-    SELECT id FROM documents WHERE status = 'ready' AND ${visibleTo(ownerId)}
+    SELECT id FROM documents
+    WHERE status = 'ready' AND ${visibleTo(ownerId)} AND ${current}
   `;
   return rows.map((r) => r.id);
 }
@@ -261,13 +347,17 @@ export async function corpusStats(ownerId: string) {
   const [row] = await sql`
     SELECT
       (SELECT count(*)::int FROM documents
-        WHERE status = 'ready' AND ${visibleTo(ownerId)}) AS documents,
+        WHERE status = 'ready' AND ${visibleTo(ownerId)} AND ${current}) AS documents,
       (SELECT count(*)::int FROM chunks c
         WHERE EXISTS (SELECT 1 FROM documents d
-                       WHERE d.id = c.document_id AND ${sql`(d.owner_id IS NULL OR d.owner_id = ${ownerId})`})) AS chunks,
+                       WHERE d.id = c.document_id
+                         AND d.superseded_by IS NULL
+                         AND ${sql`(d.owner_id IS NULL OR d.owner_id = ${ownerId})`})) AS chunks,
       (SELECT coalesce(sum(c.token_count), 0)::int FROM chunks c
         WHERE EXISTS (SELECT 1 FROM documents d
-                       WHERE d.id = c.document_id AND ${sql`(d.owner_id IS NULL OR d.owner_id = ${ownerId})`})) AS tokens
+                       WHERE d.id = c.document_id
+                         AND d.superseded_by IS NULL
+                         AND ${sql`(d.owner_id IS NULL OR d.owner_id = ${ownerId})`})) AS tokens
   `;
   return row as { documents: number; chunks: number; tokens: number };
 }

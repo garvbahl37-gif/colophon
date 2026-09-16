@@ -3,7 +3,7 @@ import { fastStageOptions, gradeModel } from "@/lib/ai/models";
 import { generateStructured } from "@/lib/ai/structured";
 import { config } from "@/lib/config";
 import { GROUNDEDNESS_SYSTEM, SUFFICIENCY_SYSTEM } from "@/lib/ai/prompts";
-import { hasMarker } from "@/lib/util/citations";
+import { claimsIn } from "@/lib/util/citations";
 import { isolate } from "@/lib/security/injection";
 import type { Candidate, Contradiction, GroundingIssue } from "./types";
 
@@ -114,14 +114,11 @@ export async function checkGroundedness(
   answer: string,
   candidates: Candidate[],
 ): Promise<Groundedness> {
-  const sentences = answer
-    .replace(/```[\s\S]*?```/g, " ")
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 25);
-
-  const cited = sentences.filter(hasMarker).length;
-  const citationDensity = sentences.length ? cited / sentences.length : 0;
+  // One definition of "a claim", shared with the coverage view, so density and
+  // coverage can never report different numbers for the same answer.
+  const claims = claimsIn(answer, candidates.length);
+  const cited = claims.filter((c) => c.markers.length > 0).length;
+  const citationDensity = claims.length ? cited / claims.length : 0;
 
   if (candidates.length === 0 || answer.trim().length < 40) {
     return { supported: true, issues: [], contradictions: [], citationDensity };

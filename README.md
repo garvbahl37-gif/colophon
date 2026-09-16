@@ -117,6 +117,27 @@ Measured effect on `"What ef_search should I use when filtering?"`:
 
 ## Ingestion
 
+**Versions, not duplicates.** Re-ingesting a source whose content has moved on
+used to create a second, unrelated document: same title, no relationship, and
+the stale text still fully searchable. The corpus then held two answers to the
+same question with nothing to say which was current — the exact fault the
+contradiction auditor reports, manufactured by the ingest path itself.
+
+Identity is the source, not the bytes. The same URL fetched a month later is the
+same document with different content; matching on checksum can only say
+"identical", which is the one case needing no work. The old row is kept and
+marked superseded rather than updated in place, so citations already handed out
+keep resolving and "what changed" stays answerable. Superseded versions leave
+retrieval and the listing; the predecessor is retired only once the new version
+is genuinely searchable, or a failed re-ingest would leave nothing at all.
+
+The comparison is structural rather than textual — a word diff of a re-flowed
+document is mostly noise, and sections are the unit citations point at. Measured
+on a handbook edited between ingests: `1 section rewritten, 1 added, 1 removed`,
+naming Deployment, Incident Comms and Rollback. Its one limitation is honest:
+a document small enough to fit in a single chunk has only one section to compare.
+
+
 **Structure-aware chunking.** Splits on headings, code fences and tables first,
 falling back to sentence packing only inside an oversized block. Every chunk
 carries its heading breadcrumb, and PDFs carry a page number.

@@ -3,6 +3,7 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/util/cn";
+import { breadcrumb } from "@/lib/util/breadcrumb";
 import { normaliseCitationMarkers } from "@/lib/util/citations";
 import type { Citation, Contradiction, GroundingIssue } from "@/lib/retrieval/types";
 
@@ -57,7 +58,7 @@ export function Answer({
                 type="button"
                 title={
                   citation
-                    ? `${citation.documentTitle}${citation.headingPath.length ? ` › ${citation.headingPath.join(" › ")}` : ""}`
+                    ? breadcrumb(citation.documentTitle, citation.headingPath, " › ")
                     : "Source not resolved"
                 }
                 onClick={() => citation && onCite?.(citation)}

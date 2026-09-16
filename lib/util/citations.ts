@@ -44,3 +44,30 @@ export function extractMarkers(text: string, max: number): number[] {
 export function hasMarker(text: string): boolean {
   return new RegExp(MARKER.source).test(text);
 }
+
+/**
+ * The answer, broken into the units a citation attaches to.
+ *
+ * Both the groundedness audit and the coverage view need "the claims in this
+ * answer, and what supports each", and they had begun deriving it separately —
+ * two definitions of a sentence drifting apart, so a density of 67% and a
+ * coverage map showing three of four claims cited could both be right and
+ * disagree. One definition, used by both.
+ *
+ * Fenced code is removed first. A code block is quoted material, not a claim,
+ * and its full stops would otherwise split it into several imaginary ones.
+ */
+export interface Claim {
+  text: string;
+  /** Markers cited by this sentence, ascending. Empty means uncited. */
+  markers: number[];
+}
+
+export function claimsIn(answer: string, max: number): Claim[] {
+  return answer
+    .replace(/```[\s\S]*?```/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 25)
+    .map((text) => ({ text, markers: extractMarkers(text, max) }));
+}

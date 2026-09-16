@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/util/cn";
+import { plainText } from "@/lib/util/plain-text";
 
 export interface DocumentRow {
   id: string;
@@ -14,6 +15,9 @@ export interface DocumentRow {
   progress: number;
   error: string | null;
   chunk_count: number;
+  version?: number;
+  prior_versions?: number;
+  metadata?: { change?: { summary?: string } };
 }
 
 export interface CorpusStats {
@@ -266,6 +270,10 @@ export function CorpusRail({
           const busyDoc = BUSY.has(doc.status);
           const failed = doc.status === "failed";
           const selected = scope.has(doc.id);
+          // Same treatment the passage panel gives a title: a heading converted
+          // from HTML arrives carrying its own anchor, and this is a one-line
+          // label with no room for it.
+          const title = plainText(doc.title) || doc.title;
 
           return (
             <li key={doc.id} className="group border-b border-hairline transition-colors hover:bg-bg-2">
@@ -275,13 +283,13 @@ export function CorpusRail({
                   checked={selected}
                   onChange={() => toggle(doc.id)}
                   disabled={doc.status !== "ready"}
-                  aria-label={`Search only ${doc.title}`}
+                  aria-label={`Search only ${title}`}
                   className="mt-0.5 h-4 w-4 shrink-0 accent-[#0a0a0a] disabled:cursor-not-allowed disabled:opacity-30"
                 />
 
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-small text-fg" title={doc.title}>
-                    {doc.title}
+                  <p className="truncate text-small text-fg" title={title}>
+                    {title}
                   </p>
 
                   {busyDoc ? (
@@ -317,16 +325,31 @@ export function CorpusRail({
                       {doc.error ?? "Could not be indexed"}
                     </p>
                   ) : (
-                    <p className="mono mt-0.5 text-micro text-fg-3">
-                      {doc.chunk_count} passages · {doc.source_type}
-                    </p>
+                    <>
+                      <p className="mono mt-0.5 text-micro text-fg-3">
+                        {doc.chunk_count} passages · {doc.source_type}
+                        {/* A version number only earns its place once there is
+                            more than one; "v1" on everything is noise. */}
+                        {(doc.version ?? 1) > 1 && (
+                          <span className="text-brand"> · v{doc.version}</span>
+                        )}
+                      </p>
+                      {doc.metadata?.change?.summary && (
+                        <p
+                          className="mt-0.5 truncate text-micro text-fg-3"
+                          title={doc.metadata.change.summary}
+                        >
+                          re-indexed — {doc.metadata.change.summary}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
 
                 <button
                   type="button"
                   onClick={() => void remove(doc.id)}
-                  aria-label={`Remove ${doc.title}`}
+                  aria-label={`Remove ${title}`}
                   className="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center text-base leading-none text-fg-3 opacity-0 transition-all hover:bg-bg-2 hover:text-alert focus-visible:opacity-100 group-hover:opacity-100"
                 >
                   ×

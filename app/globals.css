@@ -517,6 +517,28 @@ input[type="checkbox"] {
   }
   .collapse-handle:hover { color: var(--color-brand); }
 
+  /* ── Formulae ────────────────────────────────────────────────────────
+     KaTeX ships its own type scale and colour, which is right for a paper and
+     wrong inside an answer: it arrives larger than the prose around it and in
+     its own black. Matching it to the body keeps a formula part of the sentence
+     that introduced it rather than an inset illustration.
+
+     Display maths gets its own horizontal scroll. A retrieval scoring function
+     is wider than a phone, and the alternative to scrolling it is the page
+     scrolling sideways, which breaks every other line on the screen.
+  */
+  .prose-colophon .katex { font-size: 1.04em; color: inherit; }
+  .prose-colophon .katex-display {
+    margin: 1.1em 0;
+    padding-bottom: 0.35em;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .prose-colophon .katex-display > .katex { text-align: left; }
+  /* An unparseable formula is shown as its source rather than swallowed, so a
+     malformed one is visibly wrong instead of quietly missing. */
+  .prose-colophon .katex-error { color: var(--color-alert); font-family: var(--font-mono); }
+
   /* ── Passage excerpts ────────────────────────────────────────────────
      Evidence, not prose. A retrieved chunk is a fragment of someone else's
      document, so it is set tighter and quieter than an answer: the panel has

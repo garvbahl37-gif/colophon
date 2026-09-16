@@ -2,9 +2,12 @@
 
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { cn } from "@/lib/util/cn";
 import { breadcrumb } from "@/lib/util/breadcrumb";
-import { normaliseCitationMarkers } from "@/lib/util/citations";
+import { normaliseCitationMarkers, normaliseMathDelimiters } from "@/lib/util/citations";
 import type { Citation, Contradiction, GroundingIssue } from "@/lib/retrieval/types";
 
 /**
@@ -15,7 +18,13 @@ import type { Citation, Contradiction, GroundingIssue } from "@/lib/retrieval/ty
  * rewriting it would produce `[1](#cite-1)(https://…)`.
  */
 function linkCitations(text: string): string {
-  return normaliseCitationMarkers(text).replace(/\[(\d{1,3})\](?!\()/g, "[$1](#cite-$1)");
+  /*
+    Delimiters first. Citation linking rewrites [n] into a Markdown link, and a
+    formula's subscripts and brackets must be inside maths delimiters before
+    anything else starts pattern-matching brackets in the same string.
+  */
+  const text_ = normaliseMathDelimiters(normaliseCitationMarkers(text));
+  return text_.replace(/\[(\d{1,3})\](?!\()/g, "[$1](#cite-$1)");
 }
 
 export function Answer({
@@ -34,7 +43,8 @@ export function Answer({
   return (
     <div className="prose-colophon text-base leading-[1.62] text-fg">
       <Markdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
         components={{
           a({ href, children, ...props }) {
             const marker = href?.startsWith("#cite-") ? Number(href.slice(6)) : null;

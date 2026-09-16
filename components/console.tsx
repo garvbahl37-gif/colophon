@@ -421,8 +421,26 @@ export function Console() {
 
         {/* ── Conversation ───────────────────────────────────────────────── */}
         <main className="flex min-w-0 flex-1 flex-col bg-card">
-          <div ref={threadRef} className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-[48rem] px-6 py-10">
+          {/*
+            A conversation grows upward from the composer.
+
+            The column was pinned to the top of a scroll area taller than it,
+            so a short thread left four hundred pixels of nothing between the
+            answer and the box you type in -- most of the screen, and the first
+            thing you see after asking one question. `mt-auto` inside a flex
+            column pushes short content to the bottom while leaving long content
+            to scroll normally, which is how every chat behaves and why the
+            empty space belongs above the conversation rather than below it.
+
+            Not applied to the empty state: that one is a page in its own right,
+            with a heading and openers, and it reads from the top.
+          */}
+          <div ref={threadRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <div
+              className={`mx-auto w-full max-w-[48rem] px-6 py-10 ${
+                messages.length > 0 ? "mt-auto" : ""
+              }`}
+            >
               {messages.length === 0 && (
                 <EmptyState
                   hasCorpus={stats.chunks > 0}

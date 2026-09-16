@@ -67,3 +67,33 @@ export function claimsIn(answer: string, max: number): Claim[] {
     .filter((s) => s.length > 25)
     .map((text) => ({ text, markers: extractMarkers(text, max) }));
 }
+
+/**
+ * Rewrites LaTeX delimiters to the ones the Markdown maths plugin understands.
+ *
+ * remark-math recognises `$…$` and `$$…$$`. Models reach for the LaTeX
+ * delimiters instead — `\(…\)` inline and `\[…\]` display — and asking the
+ * prompt to prefer dollars is the same losing bet as asking it to prefer ASCII
+ * brackets for citations: it mostly complies, and the failures are silent. An
+ * unrecognised formula does not error, it prints its own source at the reader,
+ * which is how ColBERT's scoring function arrived as a line of backslashes.
+ *
+ * Fenced code is left alone. A shell snippet containing \[ is not a formula,
+ * and rewriting inside a code block would corrupt the one place the text is
+ * supposed to be reproduced exactly.
+ */
+export function normaliseMathDelimiters(text: string): string {
+  return text
+    .split(/(```[\s\S]*?```|`[^`\n]*`)/g)
+    .map((part, i) =>
+      i % 2 === 1
+        ? part
+        : part
+            // On its own lines: remark-math only treats $$ as DISPLAY maths
+            // when it stands alone, and inline is the wrong shape for a scoring
+            // function the surrounding sentence is introducing.
+            .replace(/\\\[([\s\S]*?)\\\]/g, (_m, body: string) => `\n\n$$\n${body.trim()}\n$$\n\n`)
+            .replace(/\\\(([\s\S]*?)\\\)/g, (_m, body: string) => `$${body.trim()}$`),
+    )
+    .join("");
+}

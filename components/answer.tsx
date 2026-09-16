@@ -4,7 +4,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/util/cn";
 import { normaliseCitationMarkers } from "@/lib/util/citations";
-import type { Citation, GroundingIssue } from "@/lib/retrieval/types";
+import type { Citation, Contradiction, GroundingIssue } from "@/lib/retrieval/types";
 
 /**
  * Turns bare citation markers into Markdown links so react-markdown will hand
@@ -90,37 +90,86 @@ export function Answer({
  */
 export function GroundingBadge({
   grounding,
+  onCite,
 }: {
-  grounding: { supported: boolean; issues: GroundingIssue[]; citationDensity: number };
+  grounding: {
+    supported: boolean;
+    issues: GroundingIssue[];
+    contradictions?: Contradiction[];
+    citationDensity: number;
+  };
+  onCite?: (marker: number) => void;
 }) {
   const density = Math.round(grounding.citationDensity * 100);
-
-  if (grounding.supported) {
-    return (
-      <div className="mono flex items-center gap-2 text-micro text-fg-3">
-        <span className="h-1.5 w-1.5  bg-jade" />
-        Every claim traces to a source
-        <span className="text-fg-3/70">{density}% of sentences cited</span>
-      </div>
-    );
-  }
+  const conflicts = grounding.contradictions ?? [];
 
   return (
-    <div className="border border-alert/40 bg-alert/5 px-3 py-2">
-      <div className="flex items-center gap-2 text-micro text-alert">
-        <span className="h-1.5 w-1.5  bg-alert" />
-        {grounding.issues.length === 1
-          ? "1 claim is not supported by the sources"
-          : `${grounding.issues.length} claims are not supported by the sources`}
-      </div>
-      <ul className="mt-1.5 space-y-1.5">
-        {grounding.issues.map((issue, i) => (
-          <li key={i} className="text-micro leading-snug text-fg-2">
-            <span className="text-fg">“{issue.claim}”</span>
-            <span className="text-fg-3"> — {issue.reason}</span>
-          </li>
-        ))}
-      </ul>
+    <div className="space-y-2">
+      {grounding.supported ? (
+        <div className="mono flex items-center gap-2 text-micro text-fg-3">
+          <span className="h-1.5 w-1.5 bg-jade" />
+          Every claim traces to a source
+          <span className="text-fg-3/70">{density}% of sentences cited</span>
+        </div>
+      ) : (
+        <div className="border border-alert/40 bg-alert/5 px-3 py-2">
+          <div className="flex items-center gap-2 text-micro text-alert">
+            <span className="h-1.5 w-1.5 bg-alert" />
+            {grounding.issues.length === 1
+              ? "1 claim is not supported by the sources"
+              : `${grounding.issues.length} claims are not supported by the sources`}
+          </div>
+          <ul className="mt-1.5 space-y-1.5">
+            {grounding.issues.map((issue, i) => (
+              <li key={i} className="text-micro leading-snug text-fg-2">
+                <span className="text-fg">“{issue.claim}”</span>
+                <span className="text-fg-3"> — {issue.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/*
+        Reported separately from groundedness, and in a different colour,
+        because it is a different kind of problem. An unsupported claim is a
+        fault in the answer. A contradiction is a fault in the corpus: both
+        passages are real, the answer may have handled it perfectly, and the
+        reader still needs to know their documents disagree — that is usually
+        the more useful finding of the two.
+      */}
+      {conflicts.length > 0 && (
+        <div className="border border-amber/40 bg-amber/5 px-3 py-2">
+          <div className="flex items-center gap-2 text-micro text-amber">
+            <span className="h-1.5 w-1.5 bg-amber" />
+            {conflicts.length === 1
+              ? "Two sources disagree"
+              : `${conflicts.length} disagreements between sources`}
+          </div>
+          <ul className="mt-1.5 space-y-2">
+            {conflicts.map((c, i) => (
+              <li key={i} className="text-micro leading-snug text-fg-2">
+                <span className="text-fg">{c.claim}</span>
+                <span className="mono ml-1.5 text-fg-3">
+                  {c.markers.map((m, j) => (
+                    <span key={m}>
+                      {j > 0 && " vs "}
+                      <button
+                        type="button"
+                        onClick={() => onCite?.(m)}
+                        className="text-brand-3 hover:underline"
+                      >
+                        [{m}]
+                      </button>
+                    </span>
+                  ))}
+                </span>
+                <p className="mt-0.5 text-fg-3">{c.detail}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

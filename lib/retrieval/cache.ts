@@ -3,7 +3,15 @@ import { nanoid } from "nanoid";
 import { sql, toVector } from "@/lib/db/client";
 import { config } from "@/lib/config";
 import { embedQuery } from "@/lib/ai/models";
-import type { Citation } from "./types";
+import type { Citation, Contradiction, GroundingIssue } from "./types";
+
+/** The verdict that accompanied an answer, replayed with it. */
+export interface CachedGrounding {
+  supported: boolean;
+  issues: GroundingIssue[];
+  contradictions: Contradiction[];
+  citationDensity: number;
+}
 
 /**
  * Answering a question that has already been answered.
@@ -63,6 +71,16 @@ export function scopeKey(documentIds: string[]): string {
 export interface CacheHit {
   answer: string;
   citations: Citation[];
+  /*
+    Replayed with the answer, not recomputed and not dropped.
+
+    A cached answer that arrives without its groundedness verdict is the one
+    answer in this system nobody can audit -- and it looks identical to one
+    that passed. Re-running the audit would cost the model call the cache
+    exists to avoid, and would be auditing the same text against the same
+    passages to reach the same conclusion. So the verdict is stored with it.
+  */
+  grounding: CachedGrounding | null;
   similarity: number;
   /** The question that produced it, so the reader can see what was matched. */
   question: string;
@@ -84,12 +102,13 @@ export async function probeCache(args: {
         question: string;
         answer: string;
         citations: Citation[];
+        grounding: CachedGrounding | null;
         similarity: number;
         age_seconds: number;
         id: string;
       }[]
     >`
-      SELECT id, question, answer, citations,
+      SELECT id, question, answer, citations, grounding,
              (1 - (embedding <=> ${toVector(embedding)}))::float8 AS similarity,
              extract(epoch FROM (now() - created_at))::float8 AS age_seconds
       FROM answer_cache
@@ -108,6 +127,7 @@ export async function probeCache(args: {
     return {
       answer: row.answer,
       citations: row.citations ?? [],
+      grounding: row.grounding ?? null,
       similarity: row.similarity,
       question: row.question,
       ageSeconds: row.age_seconds,
@@ -127,6 +147,7 @@ export async function storeAnswer(args: {
   ownerId: string;
   mode: string;
   documentIds: string[];
+  grounding: CachedGrounding | null;
 }): Promise<void> {
   if (!config.cache.enabled || args.documentIds.length === 0) return;
   // An answer that said it could not answer is not worth repeating.
@@ -140,10 +161,12 @@ export async function storeAnswer(args: {
   try {
     const embedding = await embedQuery(args.question);
     await sql`
-      INSERT INTO answer_cache (id, owner_id, question, embedding, answer, citations, mode, scope_key)
+      INSERT INTO answer_cache
+        (id, owner_id, question, embedding, answer, citations, grounding, mode, scope_key)
       VALUES (${nanoid(12)}, ${args.ownerId}, ${args.question}, ${toVector(embedding)},
-              ${args.answer}, ${sql.json(args.citations as never)}, ${args.mode},
-              ${scopeKey(args.documentIds)})
+              ${args.answer}, ${sql.json(args.citations as never)},
+              ${args.grounding ? sql.json(args.grounding as never) : null},
+              ${args.mode}, ${scopeKey(args.documentIds)})
     `;
   } catch (error) {
     /*

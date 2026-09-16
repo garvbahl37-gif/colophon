@@ -1,5 +1,11 @@
 import type { UIMessage } from "ai";
-import type { Citation, GroundingIssue, QueryPlan, TraceSpan } from "@/lib/retrieval/types";
+import type {
+  Citation,
+  Contradiction,
+  GroundingIssue,
+  QueryPlan,
+  TraceSpan,
+} from "@/lib/retrieval/types";
 
 /** A retrieved passage as the UI needs it - scores included, embeddings not. */
 export interface RetrievedPassage {
@@ -53,6 +59,7 @@ export type ColophonUIMessage = UIMessage<
     grounding: {
       supported: boolean;
       issues: GroundingIssue[];
+      contradictions: Contradiction[];
       citationDensity: number;
     };
     notice: { level: "info" | "warning" | "error"; message: string };

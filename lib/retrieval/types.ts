@@ -94,3 +94,20 @@ export interface GroundingIssue {
   claim: string;
   reason: string;
 }
+
+/**
+ * Two retrieved passages that cannot both be true.
+ *
+ * Distinct from a GroundingIssue, which asks whether the ANSWER is supported by
+ * the sources. This asks whether the sources agree with each other -- a corpus
+ * holding two versions of the same policy is a fact about the corpus, and the
+ * reader needs it whichever version the answer happened to quote.
+ */
+export interface Contradiction {
+  /** Citation markers of the disagreeing passages, as the reader sees them. */
+  markers: number[];
+  /** What they disagree about, in one line. */
+  claim: string;
+  /** What each one says, attributed. */
+  detail: string;
+}

@@ -142,4 +142,8 @@ For each factual claim in the answer, decide whether the sources actually suppor
 
 Report ONLY claims that are unsupported or that overstate what the sources say - a source saying "may reduce latency" does not support "reduces latency by half". Ignore transitions, restatements of the question, and explicit statements about what the sources do not cover.
 
-An answer with no unsupported claims returns an empty list. That is the expected outcome; do not invent problems to seem useful.`;
+An answer with no unsupported claims returns an empty list. That is the expected outcome; do not invent problems to seem useful.
+
+Separately, report contradictions BETWEEN the sources — places where two passages cannot both be true. A version change, a superseded limit, a policy that differs by tier or by environment. Give the source ids that disagree, one line on what they disagree about, and one line saying what each actually states.
+
+This is about the sources, not the answer: report a conflict even if the answer handled it correctly, because the reader needs to know their corpus holds both. Do not report passages that merely discuss different things, restate each other, or differ only in wording — only genuine incompatibility. Most source sets contain none, and an empty list is the expected outcome.`;

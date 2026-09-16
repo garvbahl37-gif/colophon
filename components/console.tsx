@@ -8,7 +8,7 @@ import { cn } from "@/lib/util/cn";
 import { breadcrumb } from "@/lib/util/breadcrumb";
 import { plainText } from "@/lib/util/plain-text";
 import type { ColophonMode, ColophonUIMessage, RetrievalRound } from "@/lib/ai/types";
-import type { Citation, GroundingIssue, TraceSpan } from "@/lib/retrieval/types";
+import type { Citation, Contradiction, GroundingIssue, TraceSpan } from "@/lib/retrieval/types";
 import { Answer, GroundingBadge } from "./answer";
 import { Boot } from "./boot";
 import { CorpusRail, useCorpus, type CorpusStats, type DocumentRow } from "./corpus";
@@ -25,7 +25,12 @@ interface Extracted {
   trace: TraceSpan[];
   rounds: RetrievalRound[];
   citations: Citation[];
-  grounding: { supported: boolean; issues: GroundingIssue[]; citationDensity: number } | null;
+  grounding: {
+    supported: boolean;
+    issues: GroundingIssue[];
+    contradictions: Contradiction[];
+    citationDensity: number;
+  } | null;
   notice: { level: string; message: string } | null;
 }
 
@@ -466,7 +471,12 @@ export function Console() {
                         />
                       )}
 
-                      {data.grounding && <GroundingBadge grounding={data.grounding} />}
+                      {data.grounding && (
+                        <GroundingBadge
+                          grounding={data.grounding}
+                          onCite={() => setShowInstrument(true)}
+                        />
+                      )}
 
                       {data.citations.length > 0 && (
                         <CitationList citations={data.citations} />

@@ -19,7 +19,7 @@ import { probeCache, storeAnswer, type CacheHit } from "./cache";
 import { EvidenceLedger } from "@/lib/agent/ledger";
 import type { ToolEvent } from "@/lib/agent/tools";
 import { diversify, fitBudget, orderForAttention } from "./compress";
-import { checkGroundedness, gradeSufficiency } from "./grade";
+import { checkGroundedness, gradeSufficiency, type Groundedness } from "./grade";
 import { expandNeighbours, fuseAcrossQueries, hybridSearch } from "./hybrid";
 import { lexicalQuery, planQuery } from "./query-planner";
 import { rerankCandidates } from "./rerank";
@@ -222,6 +222,9 @@ export async function runColophon(opts: RunOptions): Promise<void> {
     writer.write({ type: "text-delta", id: "cached", delta: cached.answer });
     writer.write({ type: "text-end", id: "cached" });
     writer.write({ type: "data-citations", data: cached.citations });
+    if (cached.grounding) {
+      writer.write({ type: "data-grounding", data: cached.grounding });
+    }
     writer.write({
       type: "data-notice",
       data: {
@@ -264,19 +267,20 @@ export async function runColophon(opts: RunOptions): Promise<void> {
 
   // Groundedness runs after the answer has streamed, so the audit costs the
   // reader no latency - it arrives as a verdict on text they are already reading.
+  let verdict: Groundedness | null = null;
   if (ledger.size > 0 && answer.trim()) {
     await trace.span("verify", "groundedness audit", async (update) => {
-      const verdict = await checkGroundedness(question, answer, ledger.all());
+      verdict = await checkGroundedness(question, answer, ledger.all());
+      const v: Groundedness = verdict;
       update({
-        detail: verdict.supported
-          ? "all claims supported"
-          : `${verdict.issues.length} unsupported`,
+        detail: v.supported ? "all claims supported" : `${v.issues.length} unsupported`,
         metrics: {
-          supported: verdict.supported ? "yes" : "no",
-          "cite density": `${Math.round(verdict.citationDensity * 100)}%`,
+          supported: v.supported ? "yes" : "no",
+          conflicts: v.contradictions.length,
+          "cite density": `${Math.round(v.citationDensity * 100)}%`,
         },
       });
-      writer.write({ type: "data-grounding", data: verdict });
+      writer.write({ type: "data-grounding", data: v });
     });
   }
 
@@ -294,6 +298,7 @@ export async function runColophon(opts: RunOptions): Promise<void> {
       ownerId: opts.ownerId,
       mode,
       documentIds: documentIds ?? [],
+      grounding: verdict,
     });
     if (opts.defer) opts.defer(write.catch(() => {}));
     else await write;

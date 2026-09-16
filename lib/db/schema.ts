@@ -121,6 +121,9 @@ CREATE TABLE IF NOT EXISTS answer_cache (
   embedding   ${column},
   answer      text NOT NULL,
   citations   jsonb NOT NULL DEFAULT '[]'::jsonb,
+  -- The verdict travels with the answer: a cached answer without its audit is
+  -- the one answer here nobody can check, and looks exactly like one that passed.
+  grounding   jsonb,
   mode        text NOT NULL,
   scope_key   text NOT NULL,
   hits        integer NOT NULL DEFAULT 0,

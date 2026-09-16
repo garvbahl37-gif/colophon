@@ -15,7 +15,8 @@
     "eval": "tsx evals/run.ts",
     "warm": "tsx scripts/warm.ts",
     "ask": "tsx scripts/ask.ts",
-    "db:copy": "tsx scripts/db-copy.ts"
+    "db:copy": "tsx scripts/db-copy.ts",
+    "corpus:check": "tsx scripts/doctor.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.48",

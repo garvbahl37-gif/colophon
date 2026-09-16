@@ -318,6 +318,7 @@ async function main() {
     k: K,
     chunks: count,
     questions: answerable,
+    models: { embed: config.models.embed, rerank: config.models.rerank },
     variants: results.map((r) => ({
       name: r.variant.name,
       shipped: Boolean(r.variant.fullPipeline),

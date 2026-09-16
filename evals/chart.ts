@@ -20,6 +20,7 @@ export function writeChart(data: {
   k: number;
   chunks: number;
   questions: number;
+  models: { embed: string; rerank: string };
   variants: Variant[];
 }): void {
   const W = 430;
@@ -43,7 +44,7 @@ export function writeChart(data: {
 
   // Room for the two caption lines; sizing from content rather than a constant
   // is what stops them being clipped when a variant is added.
-  const height = y + 58;
+  const height = y + 72;
 
   writeFileSync(
     new URL("../docs/evaluation.svg", import.meta.url),
@@ -77,6 +78,7 @@ export function writeChart(data: {
   <rect class="bg" width="860" height="${height}"/>
   <line class="rule" x1="30" y1="26" x2="830" y2="26" stroke-width="2"/>
   <text class="dim" x="30" y="18">RETRIEVAL EVALUATION · nDCG@${data.k} · ${data.questions} questions · ${data.chunks} passages · distractors included</text>
+  <text class="dim" x="30" y="${height - 6}">embed ${data.models.embed} · rerank ${data.models.rerank} — the chart says which run produced it, so an experiment cannot be mistaken for the shipped configuration.</text>
 
   <text class="dim" x="${X}" y="62">nDCG@${data.k} (shared scale)</text>
   <text class="dim" x="${X + W + 12}" y="62">score</text>

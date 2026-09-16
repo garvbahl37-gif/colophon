@@ -649,6 +649,43 @@ input[type="checkbox"] {
   animation: blink 1.05s steps(1) infinite;
 }
 
+/* ── Thinking ───────────────────────────────────────────────────────────────
+   The caret block, made into a progress motif.
+
+   A spinner says "working" and nothing else, and this pipeline has eight stages
+   that each take real time — the reader deserves to know which one they are
+   waiting on. So the same red block the composer uses for a caret marches
+   across a short track while the live stage name sits beside it. The motion
+   carries no information on its own; the label does. The motion is there so the
+   label is obviously current rather than stuck.
+
+   Steps, not a smooth slide: it is a cursor advancing through cells, which is
+   the same grammar as the caret and the mono type around it.
+*/
+@keyframes march {
+  0%, 100% { opacity: 0.12; }
+  40%      { opacity: 1; }
+}
+
+.think-cell {
+  display: inline-block;
+  width: 6px;
+  height: 14px;
+  background: var(--color-brand);
+  opacity: 0.12;
+  animation: march 1.4s steps(1, end) infinite;
+}
+.think-cell:nth-child(1) { animation-delay: 0s; }
+.think-cell:nth-child(2) { animation-delay: 0.18s; }
+.think-cell:nth-child(3) { animation-delay: 0.36s; }
+.think-cell:nth-child(4) { animation-delay: 0.54s; }
+.think-cell:nth-child(5) { animation-delay: 0.72s; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Still legible as "in progress", without anything moving. */
+  .think-cell { animation: none; opacity: 0.45; }
+}
+
 /* ── Landing intro ──────────────────────────────────────────────────────────
    A title card. Opacity and transform only, so it composites off the main
    thread and the page behind it keeps hydrating while it plays.

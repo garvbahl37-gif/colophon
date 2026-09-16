@@ -14,6 +14,7 @@ import { Boot } from "./boot";
 import { Coverage } from "./coverage";
 import { CorpusRail, useCorpus, type CorpusStats, type DocumentRow } from "./corpus";
 import { RetrievalRoundView } from "./passages";
+import { Thinking } from "./thinking";
 import { ChannelLegend, TraceStrip } from "./trace";
 
 /** Where a conversation is kept: this browser, and nothing else. */
@@ -225,6 +226,7 @@ export function Console() {
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const instrument = lastAssistant ? extract(lastAssistant) : null;
+
 
   function submit() {
     const question = input.trim();
@@ -495,7 +497,7 @@ export function Console() {
                 })}
 
                 {streaming && !lastAssistant?.parts.some((p) => p.type === "text") && (
-                  <p className="text-small text-fg-3">Searching…</p>
+                  <Thinking />
                 )}
 
                 {error && (

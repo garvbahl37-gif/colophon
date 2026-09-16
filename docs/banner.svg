@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 220" width="860" height="220"
      role="img" aria-label="Colophon — retrieval-augmented answers you can audit.">
   <style>
-    .bg   { fill: #ffffff; }
-    .word { fill: #0a0a0a; font-family: Archivo, Helvetica, Arial, sans-serif; font-size: 78px; font-weight: 800; letter-spacing: -3.5px; }
-    .lede { fill: #0a0a0a; font-family: Archivo, Helvetica, Arial, sans-serif; font-size: 15px; }
-    .dim  { fill: #6b6b73; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; letter-spacing: .5px; }
+    /* Fixed dark, not theme-aware. The three diagrams below follow the reader's
+       GitHub theme because they are information they need to read against the
+       page; this one is a title card, and a card that changes ground with its
+       surroundings stops being a card. */
+    .bg   { fill: #0a0a0a; }
+    .word { fill: #ffffff; font-family: Archivo, Helvetica, Arial, sans-serif; font-size: 78px; font-weight: 800; letter-spacing: -3.5px; }
+    .lede { fill: #ffffff; font-family: Archivo, Helvetica, Arial, sans-serif; font-size: 15px; }
+    .dim  { fill: #8f8f98; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; letter-spacing: .5px; }
     .red  { fill: #e8442a; }
-
-    @media (prefers-color-scheme: dark) {
-      .bg { fill: #0c0c0d; } .word { fill: #f4f4f5; } .lede { fill: #f4f4f5; } .dim { fill: #8a8a93; }
-    }
 
     /* The letters rise in sequence, then the rule draws, then the definition
        arrives — the same entrance the site itself uses, so the README and the

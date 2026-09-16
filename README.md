@@ -302,18 +302,39 @@ something different:
 | vector only | 0.74 | 0.880 | 22 |
 | lexical only | 0.74 | 0.891 | 9 |
 | **hybrid** | **0.78** | **0.914** | 10 |
-| hybrid + rerank | 0.74 | 0.864 | 213 |
-| full pipeline (shipped) | 0.74 | 0.864 | 10093 |
+| hybrid + rerank *(dev model)* | 0.74 | 0.864 | 213 |
 
 Hybrid beats both arms it is made of — 0.914 against 0.880 and 0.891 — which is
 the central claim of the architecture, and it was invisible until the corpus
 stopped being inconsistent with itself.
 
-Reranking still costs 0.914 → 0.864, across every run. That indicts a model
-rather than the idea: `local:Xenova/ms-marco-MiniLM-L-6-v2` reorders these
-questions worse than RRF already had, and the shipped configuration is unchanged
-because 23 questions is not enough to re-architect on. The chart names the models
-it was produced with, so an experiment cannot be mistaken for what ships.
+**Then the reranker was measured properly, and it reversed the conclusion.**
+Every run above reranks with `local:Xenova/ms-marco-MiniLM-L-6-v2`, which is the
+development default and *not* what production uses — the platform cannot load
+the ONNX runtime, so deployments rerank with `llm:listwise`. Running the same
+suite with the shipped reranker:
+
+| configuration | hit@1 | nDCG@3 | ms |
+|---|---|---|---|
+| vector only | 0.74 | 0.880 | 24 |
+| hybrid | 0.78 | 0.914 | 8 |
+| hybrid + rerank (`llm:listwise`) | 0.91 | 0.968 | 28,283 |
+| **full pipeline (shipped)** | **0.96** | **0.984** | 51,043 |
+
+**+11.9% nDCG against vector-only, hit@1 from 0.74 to 0.96, and every one of the
+23 questions finds a relevant passage** — including `gw-vs-client-retries`, the
+case that had been failing since the distractors were added. The small
+cross-encoder was destroying results the listwise reranker gets right.
+
+So "reranking hurts" was never true of the system; it was true of a 22MB model
+running on a laptop. Two readings of the same suite, an hour apart, pointing in
+opposite directions — and the only reason the second one exists is that the
+first was suspicious enough to check rather than publish.
+
+The cost is not a footnote: 51 seconds against 8 milliseconds, because every
+rerank is a model call on a provider that runs them one at a time. That is the
+real trade the numbers describe, and it is why the router skips reranking for
+lookups that the literal arms already answer.
 
 **One fix was tried and rejected by measurement.** `gw-vs-client-retries` asks
 how many times *the gateway* retries, and retrieved the HTTP client library

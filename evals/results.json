@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-09-16T17:52:19.423Z",
+  "generatedAt": "2026-09-16T18:22:55.138Z",
   "k": 3,
   "chunks": 40,
   "questions": 23,
   "models": {
     "embed": "local:Xenova/bge-base-en-v1.5",
-    "rerank": "local:Xenova/ms-marco-MiniLM-L-6-v2"
+    "rerank": "llm:listwise"
   },
   "variants": [
     {
@@ -16,7 +16,7 @@
         "hitRate": 1,
         "mrr": 0.8478260869565217,
         "ndcg": 0.8796622103917716,
-        "ms": 21.782608695652176
+        "ms": 24.304347826086957
       },
       "misses": [],
       "cases": [
@@ -25,7 +25,7 @@
           "question": "What is the formula for the retry delay?",
           "firstHit": 0,
           "ndcg": 0.9197207891481876,
-          "ms": 304,
+          "ms": 361,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -49,7 +49,7 @@
           "question": "What is the maximum retry delay?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 11,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -97,7 +97,7 @@
           "question": "How does the retry backoff differ from the circuit breaker timing?",
           "firstHit": 0,
           "ndcg": 0.9197207891481876,
-          "ms": 10,
+          "ms": 8,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -121,7 +121,7 @@
           "question": "Which requests will the gateway retry?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 13,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -145,7 +145,7 @@
           "question": "What is the overall deadline across all retries?",
           "firstHit": 1,
           "ndcg": 0.6309297535714575,
-          "ms": 13,
+          "ms": 8,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -193,7 +193,7 @@
           "question": "What ef_search value should I use when filtering to a small subset?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 8,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -217,7 +217,7 @@
           "question": "What do I do above 2000 dimensions?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 7,
+          "ms": 9,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -241,7 +241,7 @@
           "question": "Why choose HNSW over IVFFlat?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 8,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -265,7 +265,7 @@
           "question": "How long does reindexing three million chunks take?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 8,
+          "ms": 9,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -289,7 +289,7 @@
           "question": "What is the gateway per-attempt request timeout?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 8,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -337,7 +337,7 @@
           "question": "Why does the retry delay use full jitter rather than a flat delay?",
           "firstHit": 2,
           "ndcg": 0.5,
-          "ms": 10,
+          "ms": 12,
           "top": [
             {
               "title": "Platform HTTP Client Library",
@@ -361,7 +361,7 @@
           "question": "What happens when the circuit breaker is half-open?",
           "firstHit": 1,
           "ndcg": 0.6309297535714575,
-          "ms": 7,
+          "ms": 9,
           "top": [
             {
               "title": "Incident Response Runbook",
@@ -385,7 +385,7 @@
           "question": "When does a queue message go to the dead letter queue?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 8,
           "top": [
             {
               "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
@@ -409,7 +409,7 @@
           "question": "What ef_search value should I use when filtering?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 8,
+          "ms": 9,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -481,7 +481,7 @@
           "question": "How long does the edge serve a stale object when the origin returns 5xx?",
           "firstHit": 2,
           "ndcg": 0.5,
-          "ms": 9,
+          "ms": 8,
           "top": [
             {
               "title": "Edge Cache Configuration",
@@ -505,7 +505,7 @@
           "question": "How long does the first responder have to acknowledge a page?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 10,
+          "ms": 8,
           "top": [
             {
               "title": "Incident Response Runbook",
@@ -529,7 +529,7 @@
           "question": "Is the connection pool backoff linear or exponential?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 12,
+          "ms": 9,
           "top": [
             {
               "title": "Database Connection Pool Tuning",
@@ -553,7 +553,7 @@
           "question": "How long does the CDN wait for origin response headers?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 7,
+          "ms": 11,
           "top": [
             {
               "title": "Edge Cache Configuration",
@@ -591,7 +591,7 @@
           "question": "What is the formula for the retry delay?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 8,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -639,7 +639,7 @@
           "question": "How many failures open the circuit breaker?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 8,
+          "ms": 9,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -687,7 +687,7 @@
           "question": "Which requests will the gateway retry?",
           "firstHit": 1,
           "ndcg": 0.6309297535714575,
-          "ms": 8,
+          "ms": 7,
           "top": [
             {
               "title": "Platform HTTP Client Library",
@@ -711,7 +711,7 @@
           "question": "What is the overall deadline across all retries?",
           "firstHit": 2,
           "ndcg": 0.5,
-          "ms": 8,
+          "ms": 10,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -735,7 +735,7 @@
           "question": "Why was equal jitter rejected?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 10,
+          "ms": 8,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -783,7 +783,7 @@
           "question": "What do I do above 2000 dimensions?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 7,
+          "ms": 11,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -807,7 +807,7 @@
           "question": "Why choose HNSW over IVFFlat?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 11,
+          "ms": 7,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -831,7 +831,7 @@
           "question": "How long does reindexing three million chunks take?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 7,
+          "ms": 8,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -855,7 +855,7 @@
           "question": "What is the gateway per-attempt request timeout?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 8,
           "top": [
             {
               "title": "Platform HTTP Client Library",
@@ -903,7 +903,7 @@
           "question": "Why does the retry delay use full jitter rather than a flat delay?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 10,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -927,7 +927,7 @@
           "question": "What happens when the circuit breaker is half-open?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 7,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -951,7 +951,7 @@
           "question": "When does a queue message go to the dead letter queue?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 7,
           "top": [
             {
               "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
@@ -975,7 +975,7 @@
           "question": "What ef_search value should I use when filtering?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 7,
+          "ms": 8,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -999,7 +999,7 @@
           "question": "What is maxAttempts in the platform HTTP client library?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 8,
+          "ms": 9,
           "top": [
             {
               "title": "Platform HTTP Client Library",
@@ -1023,7 +1023,7 @@
           "question": "How long does a caller wait for a database connection before failing?",
           "firstHit": 1,
           "ndcg": 0.6309297535714575,
-          "ms": 10,
+          "ms": 11,
           "top": [
             {
               "title": "Database Connection Pool Tuning",
@@ -1071,7 +1071,7 @@
           "question": "How long does the first responder have to acknowledge a page?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 8,
+          "ms": 10,
           "top": [
             {
               "title": "Incident Response Runbook",
@@ -1095,7 +1095,7 @@
           "question": "Is the connection pool backoff linear or exponential?",
           "firstHit": 1,
           "ndcg": 0.6309297535714575,
-          "ms": 7,
+          "ms": 8,
           "top": [
             {
               "title": "Platform HTTP Client Library",
@@ -1119,7 +1119,7 @@
           "question": "How long does the CDN wait for origin response headers?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 10,
+          "ms": 8,
           "top": [
             {
               "title": "Edge Cache Configuration",
@@ -1148,7 +1148,7 @@
         "hitRate": 1,
         "mrr": 0.8840579710144927,
         "ndcg": 0.9140747397515578,
-        "ms": 8.91304347826087
+        "ms": 8.478260869565217
       },
       "misses": [],
       "cases": [
@@ -1181,7 +1181,7 @@
           "question": "What is the maximum retry delay?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 7,
+          "ms": 8,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -1205,7 +1205,7 @@
           "question": "How many failures open the circuit breaker?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 8,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -1229,7 +1229,7 @@
           "question": "How does the retry backoff differ from the circuit breaker timing?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 7,
+          "ms": 8,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -1253,7 +1253,7 @@
           "question": "Which requests will the gateway retry?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 10,
+          "ms": 7,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -1277,7 +1277,7 @@
           "question": "What is the overall deadline across all retries?",
           "firstHit": 2,
           "ndcg": 0.5,
-          "ms": 7,
+          "ms": 9,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
@@ -1325,7 +1325,7 @@
           "question": "What ef_search value should I use when filtering to a small subset?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 7,
+          "ms": 11,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -1349,7 +1349,7 @@
           "question": "What do I do above 2000 dimensions?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 10,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -1373,7 +1373,7 @@
           "question": "Why choose HNSW over IVFFlat?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 8,
+          "ms": 6,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -1445,7 +1445,7 @@
           "question": "How many times does the gateway retry a request?",
           "firstHit": 1,
           "ndcg": 0.6309297535714575,
-          "ms": 11,
+          "ms": 8,
           "top": [
             {
               "title": "Platform HTTP Client Library",
@@ -1469,7 +1469,7 @@
           "question": "Why does the retry delay use full jitter rather than a flat delay?",
           "firstHit": 1,
           "ndcg": 0.6309297535714575,
-          "ms": 11,
+          "ms": 10,
           "top": [
             {
               "title": "Platform HTTP Client Library",
@@ -1493,7 +1493,7 @@
           "question": "What happens when the circuit breaker is half-open?",
           "firstHit": 1,
           "ndcg": 0.6309297535714575,
-          "ms": 11,
+          "ms": 7,
           "top": [
             {
               "title": "Incident Response Runbook",
@@ -1517,7 +1517,7 @@
           "question": "When does a queue message go to the dead letter queue?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 10,
           "top": [
             {
               "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
@@ -1541,7 +1541,7 @@
           "question": "What ef_search value should I use when filtering?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 10,
+          "ms": 8,
           "top": [
             {
               "title": "Vector Index Operations",
@@ -1565,7 +1565,7 @@
           "question": "What is maxAttempts in the platform HTTP client library?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 8,
           "top": [
             {
               "title": "Platform HTTP Client Library",
@@ -1589,7 +1589,7 @@
           "question": "How long does a caller wait for a database connection before failing?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 9,
+          "ms": 7,
           "top": [
             {
               "title": "Database Connection Pool Tuning",
@@ -1613,7 +1613,7 @@
           "question": "How long does the edge serve a stale object when the origin returns 5xx?",
           "firstHit": 1,
           "ndcg": 0.6309297535714575,
-          "ms": 7,
+          "ms": 9,
           "top": [
             {
               "title": "Edge Cache Configuration",
@@ -1661,7 +1661,7 @@
           "question": "Is the connection pool backoff linear or exponential?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 10,
+          "ms": 8,
           "top": [
             {
               "title": "Database Connection Pool Tuning",
@@ -1685,7 +1685,7 @@
           "question": "How long does the CDN wait for origin response headers?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 10,
+          "ms": 9,
           "top": [
             {
               "title": "Edge Cache Configuration",
@@ -1710,37 +1710,25 @@
       "name": "hybrid + rerank",
       "shipped": false,
       "scores": {
-        "hitAt1": 0.7391304347826086,
-        "hitRate": 0.9565217391304348,
-        "mrr": 0.8405797101449275,
-        "ndcg": 0.8636156779383567,
-        "ms": 213
+        "hitAt1": 0.9130434782608695,
+        "hitRate": 1,
+        "mrr": 0.9565217391304348,
+        "ndcg": 0.9679069350931703,
+        "ms": 28283.217391304348
       },
-      "misses": [
-        "gw-vs-client-retries"
-      ],
+      "misses": [],
       "cases": [
         {
           "id": "backoff-formula",
           "question": "What is the formula for the retry delay?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 303,
+          "ms": 23393,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Retry Policy",
-              "score": 0.9922
-            },
-            {
-              "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
-              "heading": "Retry Policy",
-              "score": 0.9214
-            },
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Client Backoff",
-              "score": 0.9209
+              "score": 1
             }
           ]
         },
@@ -1749,22 +1737,22 @@
           "question": "What is the maximum retry delay?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 239,
+          "ms": 66742,
           "top": [
-            {
-              "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
-              "heading": "Retry Policy",
-              "score": 0.9853
-            },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Retry Policy",
-              "score": 0.9296
+              "score": 1
             },
             {
-              "title": "Platform HTTP Client Library",
-              "heading": "Client Backoff",
+              "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
+              "heading": "Retry Policy",
               "score": 0.9
+            },
+            {
+              "title": "Database Connection Pool Tuning",
+              "heading": "Backoff on Exhaustion",
+              "score": 0.7
             }
           ]
         },
@@ -1773,17 +1761,22 @@
           "question": "How many failures open the circuit breaker?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 262,
+          "ms": 25415,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Circuit Breaking",
-              "score": 0.9987
+              "score": 1
             },
             {
               "title": "Incident Response Runbook",
               "heading": "Alert Thresholds",
-              "score": 0.4495
+              "score": 0.8
+            },
+            {
+              "title": "Incident Response Runbook",
+              "heading": "Escalation Ladder",
+              "score": 0.8
             }
           ]
         },
@@ -1791,23 +1784,23 @@
           "id": "breaker-vs-backoff",
           "question": "How does the retry backoff differ from the circuit breaker timing?",
           "firstHit": 0,
-          "ndcg": 0.9197207891481876,
-          "ms": 247,
+          "ndcg": 1,
+          "ms": 67898,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Circuit Breaking",
-              "score": 0.9578
-            },
-            {
-              "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Timeouts",
-              "score": 0.7361
-            },
-            {
-              "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Retry Policy",
-              "score": 0.2989
+              "score": 0.8
+            },
+            {
+              "title": "Gateway RFC 0042: Request Retry and Backoff",
+              "heading": "Circuit Breaking",
+              "score": 0.8
+            },
+            {
+              "title": "Platform HTTP Client Library",
+              "heading": "Client Backoff",
+              "score": 0.4
             }
           ]
         },
@@ -1816,22 +1809,12 @@
           "question": "Which requests will the gateway retry?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 197,
+          "ms": 14391,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Retry Policy",
-              "score": 0.9988
-            },
-            {
-              "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Circuit Breaking",
-              "score": 0.9981
-            },
-            {
-              "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Timeouts",
-              "score": 0.9972
+              "score": 1
             }
           ]
         },
@@ -1840,17 +1823,17 @@
           "question": "What is the overall deadline across all retries?",
           "firstHit": 1,
           "ndcg": 0.6309297535714575,
-          "ms": 205,
+          "ms": 24338,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Rejected Alternatives",
-              "score": 0.9985
+              "score": 1
             },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Timeouts",
-              "score": 0.9893
+              "score": 1
             }
           ]
         },
@@ -1859,31 +1842,36 @@
           "question": "Why was equal jitter rejected?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 214,
+          "ms": 26435,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Rejected Alternatives",
-              "score": 0.9989
+              "score": 1
+            },
+            {
+              "title": "Gateway RFC 0042: Request Retry and Backoff",
+              "heading": "Retry Policy",
+              "score": 0.1
             }
           ]
         },
         {
           "id": "ef-search-filtered",
           "question": "What ef_search value should I use when filtering to a small subset?",
-          "firstHit": 1,
-          "ndcg": 0.6309297535714575,
-          "ms": 200,
+          "firstHit": 0,
+          "ndcg": 1,
+          "ms": 42923,
           "top": [
             {
               "title": "Vector Index Operations",
-              "heading": "Dimension Limits",
-              "score": 0.9984
+              "heading": "Tuning ef_search",
+              "score": 1
             },
             {
               "title": "Vector Index Operations",
-              "heading": "Tuning ef_search",
-              "score": 0.996
+              "heading": "Dimension Limits",
+              "score": 1
             }
           ]
         },
@@ -1892,17 +1880,17 @@
           "question": "What do I do above 2000 dimensions?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 197,
+          "ms": 21633,
           "top": [
             {
               "title": "Vector Index Operations",
               "heading": "Dimension Limits",
-              "score": 0.962
+              "score": 1
             },
             {
               "title": "Vector Index Operations",
               "heading": "Rebuild Cost",
-              "score": 0.3843
+              "score": 1
             }
           ]
         },
@@ -1911,17 +1899,22 @@
           "question": "Why choose HNSW over IVFFlat?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 197,
+          "ms": 23547,
           "top": [
             {
               "title": "Vector Index Operations",
               "heading": "Choosing an Index Type",
-              "score": 0.9982
+              "score": 1
+            },
+            {
+              "title": "Vector Index Operations",
+              "heading": "Rebuild Cost",
+              "score": 0.8
             },
             {
               "title": "Vector Index Operations",
               "heading": "Tuning ef_search",
-              "score": 0.0203
+              "score": 0.1
             }
           ]
         },
@@ -1930,12 +1923,12 @@
           "question": "How long does reindexing three million chunks take?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 210,
+          "ms": 20851,
           "top": [
             {
               "title": "Vector Index Operations",
               "heading": "Rebuild Cost",
-              "score": 0.9999
+              "score": 1
             }
           ]
         },
@@ -1943,90 +1936,80 @@
           "id": "gw-attempt-timeout",
           "question": "What is the gateway per-attempt request timeout?",
           "firstHit": 0,
-          "ndcg": 0.9197207891481876,
-          "ms": 201,
+          "ndcg": 1,
+          "ms": 21215,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Timeouts",
-              "score": 0.9994
+              "score": 1
             },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Rejected Alternatives",
-              "score": 0.9993
-            },
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Client Timeouts",
-              "score": 0.9856
+              "score": 1
             }
           ]
         },
         {
           "id": "gw-vs-client-retries",
           "question": "How many times does the gateway retry a request?",
-          "firstHit": null,
-          "ndcg": 0,
-          "ms": 194,
+          "firstHit": 0,
+          "ndcg": 1,
+          "ms": 32168,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Rejected Alternatives",
-              "score": 0.9967
+              "heading": "Retry Policy",
+              "score": 1
             },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Circuit Breaking",
-              "score": 0.9957
+              "score": 1
             },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Timeouts",
-              "score": 0.9956
+              "heading": "Rejected Alternatives",
+              "score": 1
             }
           ]
         },
         {
           "id": "jitter-rationale",
           "question": "Why does the retry delay use full jitter rather than a flat delay?",
-          "firstHit": 1,
-          "ndcg": 0.6309297535714575,
-          "ms": 203,
+          "firstHit": 0,
+          "ndcg": 1,
+          "ms": 29374,
           "top": [
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Client Backoff",
-              "score": 0.9756
-            },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Retry Policy",
-              "score": 0.8883
+              "score": 1
             },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Rejected Alternatives",
-              "score": 0.8507
+              "score": 0.8
             }
           ]
         },
         {
           "id": "breaker-half-open",
           "question": "What happens when the circuit breaker is half-open?",
-          "firstHit": 1,
-          "ndcg": 0.6309297535714575,
-          "ms": 193,
+          "firstHit": 0,
+          "ndcg": 1,
+          "ms": 34705,
           "top": [
-            {
-              "title": "Incident Response Runbook",
-              "heading": "Breaker Runbook",
-              "score": 0.9763
-            },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Circuit Breaking",
-              "score": 0.7997
+              "score": 0.9
+            },
+            {
+              "title": "Incident Response Runbook",
+              "heading": "Breaker Runbook",
+              "score": 0.2
             }
           ]
         },
@@ -2035,22 +2018,22 @@
           "question": "When does a queue message go to the dead letter queue?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 216,
+          "ms": 36451,
           "top": [
             {
               "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
               "heading": "Dead Letter Handling",
-              "score": 0.9995
-            },
-            {
-              "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
-              "heading": "Visibility Timeout",
-              "score": 0.999
+              "score": 1
             },
             {
               "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
               "heading": "Retry Policy",
-              "score": 0.9946
+              "score": 1
+            },
+            {
+              "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
+              "heading": "Visibility Timeout",
+              "score": 0.2
             }
           ]
         },
@@ -2059,17 +2042,17 @@
           "question": "What ef_search value should I use when filtering?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 202,
+          "ms": 18285,
           "top": [
             {
               "title": "Vector Index Operations",
               "heading": "Tuning ef_search",
-              "score": 0.9934
+              "score": 1
             },
             {
               "title": "Vector Index Operations",
               "heading": "Dimension Limits",
-              "score": 0.9895
+              "score": 0.8
             }
           ]
         },
@@ -2078,22 +2061,17 @@
           "question": "What is maxAttempts in the platform HTTP client library?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 191,
+          "ms": 14059,
           "top": [
             {
               "title": "Platform HTTP Client Library",
               "heading": "Client Retry Semantics",
-              "score": 0.9974
+              "score": 1
             },
             {
               "title": "Platform HTTP Client Library",
-              "heading": "Client Timeouts",
-              "score": 0.9921
-            },
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Connection Reuse",
-              "score": 0.9159
+              "heading": "Client Backoff",
+              "score": 0.8
             }
           ]
         },
@@ -2102,46 +2080,31 @@
           "question": "How long does a caller wait for a database connection before failing?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 207,
+          "ms": 32215,
           "top": [
             {
               "title": "Database Connection Pool Tuning",
               "heading": "Acquire Timeout",
-              "score": 0.9894
-            },
-            {
-              "title": "Database Connection Pool Tuning",
-              "heading": "Health Probing",
-              "score": 0.8919
-            },
-            {
-              "title": "Database Connection Pool Tuning",
-              "heading": "Backoff on Exhaustion",
-              "score": 0.5355
+              "score": 1
             }
           ]
         },
         {
           "id": "stale-if-error",
           "question": "How long does the edge serve a stale object when the origin returns 5xx?",
-          "firstHit": 2,
-          "ndcg": 0.5,
-          "ms": 216,
+          "firstHit": 1,
+          "ndcg": 0.6309297535714575,
+          "ms": 21402,
           "top": [
             {
               "title": "Edge Cache Configuration",
               "heading": "Origin Timeouts",
-              "score": 0.9998
-            },
-            {
-              "title": "Edge Cache Configuration",
-              "heading": "Purge Semantics",
-              "score": 0.9953
+              "score": 1
             },
             {
               "title": "Edge Cache Configuration",
               "heading": "Edge TTLs",
-              "score": 0.9866
+              "score": 1
             }
           ]
         },
@@ -2150,17 +2113,12 @@
           "question": "How long does the first responder have to acknowledge a page?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 205,
+          "ms": 9904,
           "top": [
             {
               "title": "Incident Response Runbook",
               "heading": "Escalation Ladder",
-              "score": 0.9811
-            },
-            {
-              "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
-              "heading": "Visibility Timeout",
-              "score": 0.0341
+              "score": 1
             }
           ]
         },
@@ -2169,22 +2127,17 @@
           "question": "Is the connection pool backoff linear or exponential?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 199,
+          "ms": 26862,
           "top": [
             {
               "title": "Database Connection Pool Tuning",
               "heading": "Backoff on Exhaustion",
-              "score": 0.9994
+              "score": 1
             },
             {
               "title": "Database Connection Pool Tuning",
               "heading": "Health Probing",
-              "score": 0.9934
-            },
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Connection Reuse",
-              "score": 0.9331
+              "score": 1
             }
           ]
         },
@@ -2193,17 +2146,12 @@
           "question": "How long does the CDN wait for origin response headers?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 201,
+          "ms": 16308,
           "top": [
             {
               "title": "Edge Cache Configuration",
               "heading": "Origin Timeouts",
-              "score": 0.9945
-            },
-            {
-              "title": "Edge Cache Configuration",
-              "heading": "Edge TTLs",
-              "score": 0.8318
+              "score": 1
             }
           ]
         }
@@ -2213,37 +2161,30 @@
       "name": "full pipeline",
       "shipped": true,
       "scores": {
-        "hitAt1": 0.7391304347826086,
-        "hitRate": 0.9565217391304348,
-        "mrr": 0.8405797101449275,
-        "ndcg": 0.8636156779383567,
-        "ms": 10093
+        "hitAt1": 0.9565217391304348,
+        "hitRate": 1,
+        "mrr": 0.9782608695652174,
+        "ndcg": 0.9839534675465851,
+        "ms": 51043.47826086957
       },
-      "misses": [
-        "gw-vs-client-retries"
-      ],
+      "misses": [],
       "cases": [
         {
           "id": "backoff-formula",
           "question": "What is the formula for the retry delay?",
           "firstHit": 0,
-          "ndcg": 0.9197207891481876,
-          "ms": 5507,
+          "ndcg": 1,
+          "ms": 52378,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Retry Policy",
-              "score": 0.9922
-            },
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Client Backoff",
-              "score": 0.9209
+              "score": 1
             },
             {
               "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
               "heading": "Retry Policy",
-              "score": 0.9214
+              "score": 0.3
             }
           ]
         },
@@ -2252,22 +2193,22 @@
           "question": "What is the maximum retry delay?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 6746,
+          "ms": 37439,
           "top": [
-            {
-              "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
-              "heading": "Retry Policy",
-              "score": 0.9853
-            },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Retry Policy",
-              "score": 0.9296
+              "score": 1
             },
             {
-              "title": "Platform HTTP Client Library",
-              "heading": "Client Backoff",
-              "score": 0.9
+              "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
+              "heading": "Retry Policy",
+              "score": 0.4
+            },
+            {
+              "title": "Database Connection Pool Tuning",
+              "heading": "Backoff on Exhaustion",
+              "score": 0.2
             }
           ]
         },
@@ -2276,17 +2217,12 @@
           "question": "How many failures open the circuit breaker?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 7401,
+          "ms": 30874,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Circuit Breaking",
-              "score": 0.9987
-            },
-            {
-              "title": "Incident Response Runbook",
-              "heading": "Alert Thresholds",
-              "score": 0.4495
+              "score": 1
             }
           ]
         },
@@ -2294,23 +2230,23 @@
           "id": "breaker-vs-backoff",
           "question": "How does the retry backoff differ from the circuit breaker timing?",
           "firstHit": 0,
-          "ndcg": 0.9197207891481876,
-          "ms": 7127,
+          "ndcg": 1,
+          "ms": 60802,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Circuit Breaking",
-              "score": 0.9578
-            },
-            {
-              "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Timeouts",
-              "score": 0.7361
+              "score": 0.4
             },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Retry Policy",
-              "score": 0.2989
+              "score": 0.4
+            },
+            {
+              "title": "Incident Response Runbook",
+              "heading": "Breaker Runbook",
+              "score": 0.2
             }
           ]
         },
@@ -2319,41 +2255,31 @@
           "question": "Which requests will the gateway retry?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 6692,
+          "ms": 29185,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Retry Policy",
-              "score": 0.9988
-            },
-            {
-              "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Status",
-              "score": 0.9968
-            },
-            {
-              "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Circuit Breaking",
-              "score": 0.9981
+              "score": 1
             }
           ]
         },
         {
           "id": "total-deadline",
           "question": "What is the overall deadline across all retries?",
-          "firstHit": 1,
-          "ndcg": 0.6309297535714575,
-          "ms": 5613,
+          "firstHit": 0,
+          "ndcg": 1,
+          "ms": 20967,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Rejected Alternatives",
-              "score": 0.9985
+              "heading": "Timeouts",
+              "score": 1
             },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Timeouts",
-              "score": 0.9893
+              "heading": "Rejected Alternatives",
+              "score": 1
             }
           ]
         },
@@ -2362,31 +2288,36 @@
           "question": "Why was equal jitter rejected?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 13008,
+          "ms": 26893,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Rejected Alternatives",
-              "score": 0.9989
+              "score": 1
+            },
+            {
+              "title": "Gateway RFC 0042: Request Retry and Backoff",
+              "heading": "Retry Policy",
+              "score": 1
             }
           ]
         },
         {
           "id": "ef-search-filtered",
           "question": "What ef_search value should I use when filtering to a small subset?",
-          "firstHit": 1,
-          "ndcg": 0.6309297535714575,
-          "ms": 5052,
+          "firstHit": 0,
+          "ndcg": 1,
+          "ms": 25942,
           "top": [
             {
               "title": "Vector Index Operations",
-              "heading": "Dimension Limits",
-              "score": 0.9984
+              "heading": "Tuning ef_search",
+              "score": 1
             },
             {
               "title": "Vector Index Operations",
-              "heading": "Tuning ef_search",
-              "score": 0.996
+              "heading": "Dimension Limits",
+              "score": 1
             }
           ]
         },
@@ -2395,17 +2326,17 @@
           "question": "What do I do above 2000 dimensions?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 11460,
+          "ms": 25496,
           "top": [
             {
               "title": "Vector Index Operations",
               "heading": "Dimension Limits",
-              "score": 0.962
+              "score": 1
             },
             {
               "title": "Vector Index Operations",
               "heading": "Rebuild Cost",
-              "score": 0.3843
+              "score": 1
             }
           ]
         },
@@ -2414,17 +2345,22 @@
           "question": "Why choose HNSW over IVFFlat?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 15175,
+          "ms": 42193,
           "top": [
             {
               "title": "Vector Index Operations",
               "heading": "Choosing an Index Type",
-              "score": 0.9982
+              "score": 1
+            },
+            {
+              "title": "Vector Index Operations",
+              "heading": "Rebuild Cost",
+              "score": 0.8
             },
             {
               "title": "Vector Index Operations",
               "heading": "Tuning ef_search",
-              "score": 0.0203
+              "score": 0.6
             }
           ]
         },
@@ -2433,12 +2369,12 @@
           "question": "How long does reindexing three million chunks take?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 12989,
+          "ms": 456780,
           "top": [
             {
               "title": "Vector Index Operations",
               "heading": "Rebuild Cost",
-              "score": 0.9999
+              "score": 1
             }
           ]
         },
@@ -2447,89 +2383,79 @@
           "question": "What is the gateway per-attempt request timeout?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 4344,
+          "ms": 18812,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Timeouts",
-              "score": 0.9994
-            },
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Client Timeouts",
-              "score": 0.9856
+              "score": 1
             },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Rejected Alternatives",
-              "score": 0.9993
+              "score": 1
             }
           ]
         },
         {
           "id": "gw-vs-client-retries",
           "question": "How many times does the gateway retry a request?",
-          "firstHit": null,
-          "ndcg": 0,
-          "ms": 6065,
+          "firstHit": 0,
+          "ndcg": 1,
+          "ms": 27823,
           "top": [
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
-              "heading": "Rejected Alternatives",
-              "score": 0.9967
+              "heading": "Retry Policy",
+              "score": 1
             },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Circuit Breaking",
-              "score": 0.9957
-            },
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Client Backoff",
-              "score": 0.9945
+              "score": 1
             }
           ]
         },
         {
           "id": "jitter-rationale",
           "question": "Why does the retry delay use full jitter rather than a flat delay?",
-          "firstHit": 1,
-          "ndcg": 0.6309297535714575,
-          "ms": 8691,
+          "firstHit": 0,
+          "ndcg": 1,
+          "ms": 32142,
           "top": [
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Client Backoff",
-              "score": 0.9756
-            },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Retry Policy",
-              "score": 0.8883
+              "score": 0.9
             },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Rejected Alternatives",
-              "score": 0.8507
+              "score": 0.8
+            },
+            {
+              "title": "Gateway RFC 0042: Request Retry and Backoff",
+              "heading": "Motivation",
+              "score": 0.3
             }
           ]
         },
         {
           "id": "breaker-half-open",
           "question": "What happens when the circuit breaker is half-open?",
-          "firstHit": 1,
-          "ndcg": 0.6309297535714575,
-          "ms": 16247,
+          "firstHit": 0,
+          "ndcg": 1,
+          "ms": 37415,
           "top": [
-            {
-              "title": "Incident Response Runbook",
-              "heading": "Breaker Runbook",
-              "score": 0.9763
-            },
             {
               "title": "Gateway RFC 0042: Request Retry and Backoff",
               "heading": "Circuit Breaking",
-              "score": 0.7997
+              "score": 0.9
+            },
+            {
+              "title": "Incident Response Runbook",
+              "heading": "Breaker Runbook",
+              "score": 0.3
             }
           ]
         },
@@ -2538,22 +2464,17 @@
           "question": "When does a queue message go to the dead letter queue?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 8751,
+          "ms": 26453,
           "top": [
             {
               "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
               "heading": "Dead Letter Handling",
-              "score": 0.9995
+              "score": 1
             },
             {
               "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
               "heading": "Retry Policy",
-              "score": 0.9946
-            },
-            {
-              "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
-              "heading": "Visibility Timeout",
-              "score": 0.999
+              "score": 1
             }
           ]
         },
@@ -2562,17 +2483,17 @@
           "question": "What ef_search value should I use when filtering?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 38168,
+          "ms": 51302,
           "top": [
             {
               "title": "Vector Index Operations",
               "heading": "Tuning ef_search",
-              "score": 0.9934
+              "score": 1
             },
             {
               "title": "Vector Index Operations",
               "heading": "Dimension Limits",
-              "score": 0.9895
+              "score": 0.9
             }
           ]
         },
@@ -2581,22 +2502,17 @@
           "question": "What is maxAttempts in the platform HTTP client library?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 12868,
+          "ms": 37859,
           "top": [
             {
               "title": "Platform HTTP Client Library",
               "heading": "Client Retry Semantics",
-              "score": 0.9974
+              "score": 1
             },
             {
               "title": "Platform HTTP Client Library",
               "heading": "Client Timeouts",
-              "score": 0.9921
-            },
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Connection Reuse",
-              "score": 0.9159
+              "score": 0.5
             }
           ]
         },
@@ -2605,46 +2521,31 @@
           "question": "How long does a caller wait for a database connection before failing?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 12775,
+          "ms": 30006,
           "top": [
             {
               "title": "Database Connection Pool Tuning",
               "heading": "Acquire Timeout",
-              "score": 0.9894
-            },
-            {
-              "title": "Database Connection Pool Tuning",
-              "heading": "Health Probing",
-              "score": 0.8919
-            },
-            {
-              "title": "Database Connection Pool Tuning",
-              "heading": "Backoff on Exhaustion",
-              "score": 0.5355
+              "score": 1
             }
           ]
         },
         {
           "id": "stale-if-error",
           "question": "How long does the edge serve a stale object when the origin returns 5xx?",
-          "firstHit": 2,
-          "ndcg": 0.5,
-          "ms": 7713,
+          "firstHit": 1,
+          "ndcg": 0.6309297535714575,
+          "ms": 30475,
           "top": [
             {
               "title": "Edge Cache Configuration",
               "heading": "Origin Timeouts",
-              "score": 0.9998
-            },
-            {
-              "title": "Edge Cache Configuration",
-              "heading": "Purge Semantics",
-              "score": 0.9953
+              "score": 1
             },
             {
               "title": "Edge Cache Configuration",
               "heading": "Edge TTLs",
-              "score": 0.9866
+              "score": 1
             }
           ]
         },
@@ -2653,17 +2554,12 @@
           "question": "How long does the first responder have to acknowledge a page?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 4825,
+          "ms": 19557,
           "top": [
             {
               "title": "Incident Response Runbook",
               "heading": "Escalation Ladder",
-              "score": 0.9811
-            },
-            {
-              "title": "Queue RFC 0071: Delivery Retries and Dead Letters",
-              "heading": "Visibility Timeout",
-              "score": 0.0341
+              "score": 1
             }
           ]
         },
@@ -2672,22 +2568,12 @@
           "question": "Is the connection pool backoff linear or exponential?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 6128,
+          "ms": 33880,
           "top": [
             {
               "title": "Database Connection Pool Tuning",
               "heading": "Backoff on Exhaustion",
-              "score": 0.9994
-            },
-            {
-              "title": "Database Connection Pool Tuning",
-              "heading": "Health Probing",
-              "score": 0.9934
-            },
-            {
-              "title": "Platform HTTP Client Library",
-              "heading": "Connection Reuse",
-              "score": 0.9331
+              "score": 1
             }
           ]
         },
@@ -2696,17 +2582,12 @@
           "question": "How long does the CDN wait for origin response headers?",
           "firstHit": 0,
           "ndcg": 1,
-          "ms": 8794,
+          "ms": 19327,
           "top": [
             {
               "title": "Edge Cache Configuration",
               "heading": "Origin Timeouts",
-              "score": 0.9945
-            },
-            {
-              "title": "Edge Cache Configuration",
-              "heading": "Edge TTLs",
-              "score": 0.8318
+              "score": 1
             }
           ]
         }

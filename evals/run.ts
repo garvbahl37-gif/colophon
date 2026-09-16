@@ -21,6 +21,7 @@ import "../scripts/env";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { writeFileSync } from "node:fs";
+import { writeChart } from "./chart";
 import { sql } from "../lib/db/client";
 import { config } from "../lib/config";
 import { embedQuery } from "../lib/ai/models";
@@ -312,7 +313,20 @@ async function main() {
       2,
     ),
   );
-  console.log(`\n  \x1b[2mWrote evals/results.json — rendered at /evals\x1b[0m`);
+  // And the README's picture of the same run, so the two cannot drift.
+  writeChart({
+    k: K,
+    chunks: count,
+    questions: answerable,
+    variants: results.map((r) => ({
+      name: r.variant.name,
+      shipped: Boolean(r.variant.fullPipeline),
+      scores: r.scores,
+    })),
+  });
+  console.log(
+    `\n  \x1b[2mWrote evals/results.json (rendered at /evals) and docs/evaluation.svg\x1b[0m`,
+  );
 
   if (process.argv.includes("--answers")) await scoreAnswers();
   console.log();

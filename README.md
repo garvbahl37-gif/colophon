@@ -1,6 +1,8 @@
-# Colophon
+<p align="center">
+  <img src="docs/banner.svg" alt="Colophon — retrieval-augmented answers you can audit." width="100%">
+</p>
 
-**Retrieval-augmented answers you can audit.**
+# Colophon
 
 A colophon is the note at the end of a book stating how it was made — the press,
 the paper, the typeface. That is this project's thesis: not just the answer, but
@@ -38,13 +40,9 @@ pnpm dev                         # http://localhost:3000
 
 ## The pipeline
 
-```
-plan ──▶ retrieve ──▶ rerank ──▶ grade ──▶ compress ──▶ generate ──▶ verify
- │          │           │          │          │            │           │
- rewrite    3 arms      cross-     suffic-    MMR +        cited       ground-
- decompose  RRF in SQL  encoder    iency      neighbour    answer      edness
- HyDE ×n                           ↺ re-hop   expansion                audit
-```
+<p align="center">
+  <img src="docs/pipeline.svg" alt="The pipeline: plan, route, retrieve, rerank, grade, compress, generate, verify — one question travelling through all eight stages." width="100%">
+</p>
 
 | Stage | The failure it exists to prevent |
 |---|---|
@@ -61,6 +59,10 @@ plan ──▶ retrieve ──▶ rerank ──▶ grade ──▶ compress ─�
 ## Retrieval
 
 ### Three arms, fused in one SQL statement
+
+<p align="center">
+  <img src="docs/retrieval.svg" alt="Vector, lexical and identifier arms running as one SQL statement and fused by Reciprocal Rank Fusion before any row leaves Postgres." width="100%">
+</p>
 
 A pgvector HNSW scan, a Postgres full-text scan, and a verbatim identifier scan
 run as three arms of a **single** query and are fused by Reciprocal Rank Fusion
@@ -279,6 +281,10 @@ vocabulary and not the headings, so a near-miss scores as the miss it is.
 
 With plausible wrong answers available the configurations finally separate, and
 what they separate into is uncomfortable:
+
+<p align="center">
+  <img src="docs/evaluation.svg" alt="nDCG@3 across five retrieval configurations. Vector-only scores highest at 0.907; the shipped full pipeline reaches 0.867." width="100%">
+</p>
 
 | configuration | hit@1 | nDCG@3 | ms |
 |---|---|---|---|

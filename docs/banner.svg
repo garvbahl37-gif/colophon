@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 220" width="860" height="220"
+     role="img" aria-label="Colophon — retrieval-augmented answers you can audit.">
+  <style>
+    .bg   { fill: #ffffff; }
+    .word { fill: #0a0a0a; font-family: Archivo, Helvetica, Arial, sans-serif; font-size: 78px; font-weight: 800; letter-spacing: -3.5px; }
+    .lede { fill: #0a0a0a; font-family: Archivo, Helvetica, Arial, sans-serif; font-size: 15px; }
+    .dim  { fill: #6b6b73; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; letter-spacing: .5px; }
+    .red  { fill: #e8442a; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0c0c0d; } .word { fill: #f4f4f5; } .lede { fill: #f4f4f5; } .dim { fill: #8a8a93; }
+    }
+
+    /* The letters rise in sequence, then the rule draws, then the definition
+       arrives — the same entrance the site itself uses, so the README and the
+       product open the same way. */
+    .ch { animation: rise 7s cubic-bezier(.2,.8,.2,1) infinite; opacity: 0; }
+    @keyframes rise {
+      0%       { opacity: 0; transform: translateY(16px); }
+      9%, 82%  { opacity: 1; transform: translateY(0); }
+      94%, 100%{ opacity: 0; transform: translateY(0); }
+    }
+    .c1{animation-delay:0s}    .c2{animation-delay:.05s} .c3{animation-delay:.1s}
+    .c4{animation-delay:.15s}  .c5{animation-delay:.2s}  .c6{animation-delay:.25s}
+    .c7{animation-delay:.3s}   .c8{animation-delay:.35s}
+
+    .draw { animation: draw 7s cubic-bezier(.2,.8,.2,1) infinite; transform-origin: 30px 0; }
+    @keyframes draw {
+      0%, 6%   { transform: scaleX(0); }
+      26%, 84% { transform: scaleX(1); }
+      96%,100% { transform: scaleX(0); }
+    }
+
+    .fade { animation: fade 7s ease infinite; opacity: 0; }
+    @keyframes fade {
+      0%, 24%  { opacity: 0; }
+      34%, 84% { opacity: 1; }
+      95%,100% { opacity: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ch, .draw, .fade { animation: none; opacity: 1; transform: none; }
+    }
+  </style>
+
+  <rect class="bg" width="860" height="220"/>
+
+  <g class="word">
+    <text x="30"  y="96" class="ch c1">C</text>
+    <text x="90"  y="96" class="ch c2">O</text>
+    <text x="156" y="96" class="ch c3">L</text>
+    <text x="204" y="96" class="ch c4">O</text>
+    <text x="270" y="96" class="ch c5">P</text>
+    <text x="325" y="96" class="ch c6">H</text>
+    <text x="388" y="96" class="ch c7">O</text>
+    <text x="454" y="96" class="ch c8">N</text>
+  </g>
+
+  <rect class="red draw" x="30" y="118" width="800" height="3"/>
+
+  <g class="fade">
+    <text class="lede" x="30" y="150">Retrieval-augmented answers you can audit.</text>
+    <text class="dim" x="30" y="176">col·o·phon — the note at the end of a book stating how it was made:</text>
+    <text class="dim" x="30" y="190">the press, the paper, the typeface.</text>
+    <text class="dim" x="30" y="212">pgvector HNSW · Postgres tsvector · pg_trgm · RRF in one statement · cross-encoder · agentic retrieval · groundedness audit</text>
+  </g>
+</svg>

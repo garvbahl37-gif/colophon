@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 260" width="860" height="260"
+     role="img" aria-label="Three retrieval arms — vector, lexical and identifier — fused by Reciprocal Rank Fusion inside a single SQL statement.">
+  <style>
+    .bg   { fill: #ffffff; }
+    .rule { stroke: #0a0a0a; }
+    .hair { stroke: #d0d0d6; }
+    .tx   { fill: #0a0a0a; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; }
+    .dim  { fill: #6b6b73; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 9px; }
+    .box  { fill: #f6f6f7; stroke: #e4e4e7; }
+    .jade { fill: #1f8a56; } .jstroke { stroke: #1f8a56; }
+    .amb  { fill: #b4690e; } .astroke { stroke: #b4690e; }
+    .red  { fill: #e8442a; } .rstroke { stroke: #e8442a; }
+    .fuse { fill: #4a4a52; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0c0c0d; } .rule { stroke: #f4f4f5; } .hair { stroke: #3a3a40; }
+      .tx { fill: #f4f4f5; } .dim { fill: #8a8a93; }
+      .box { fill: #171719; stroke: #2a2a30; }
+      .jade { fill: #34d399; } .jstroke { stroke: #34d399; }
+      .amb { fill: #fbbf24; } .astroke { stroke: #fbbf24; }
+      .fuse { fill: #a1a1aa; }
+    }
+
+    /* Rows leaving each arm on its own cadence, converging on the fuse. The
+       three arms run at once because they are one SQL statement, not three
+       round trips — that is the whole claim this picture makes. */
+    .row { animation: flow 3.2s ease-in-out infinite; }
+    @keyframes flow {
+      0%       { transform: translateX(0); opacity: 0; }
+      12%      { opacity: 1; }
+      78%      { opacity: 1; }
+      100%     { transform: translateX(268px); opacity: 0; }
+    }
+    .d0 { animation-delay: 0s; }    .d1 { animation-delay: .35s; }
+    .d2 { animation-delay: .7s; }   .d3 { animation-delay: 1.05s; }
+    .d4 { animation-delay: 1.4s; }  .d5 { animation-delay: 1.75s; }
+
+    /* The fused output pulses once per cycle, after the rows have arrived. */
+    .out { animation: settle 3.2s ease-in-out infinite; }
+    @keyframes settle {
+      0%, 55% { opacity: .25; }
+      70%     { opacity: 1; }
+      100%    { opacity: .25; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .row { animation: none; opacity: 1; }
+      .out { animation: none; opacity: 1; }
+    }
+  </style>
+
+  <rect class="bg" width="860" height="260"/>
+  <line class="rule" x1="30" y1="26" x2="830" y2="26" stroke-width="2"/>
+  <text class="dim" x="30" y="18">ONE SQL STATEMENT · three arms, fused before any row leaves Postgres</text>
+
+  <!-- Arm labels and lanes -->
+  <g>
+    <text class="tx jade" x="30" y="66">vector</text>
+    <text class="dim" x="30" y="79">hnsw · meaning</text>
+    <line class="hair jstroke" x1="30" y1="88" x2="300" y2="88" stroke-width="1" stroke-dasharray="2 3"/>
+    <g class="row d0"><rect class="jade" x="30" y="83" width="26" height="4"/></g>
+    <g class="row d3"><rect class="jade" x="30" y="83" width="18" height="4"/></g>
+
+    <text class="tx amb" x="30" y="130">lexical</text>
+    <text class="dim" x="30" y="143">gin · exact wording</text>
+    <line class="hair astroke" x1="30" y1="152" x2="300" y2="152" stroke-width="1" stroke-dasharray="2 3"/>
+    <g class="row d1"><rect class="amb" x="30" y="147" width="26" height="4"/></g>
+    <g class="row d4"><rect class="amb" x="30" y="147" width="18" height="4"/></g>
+
+    <text class="tx red" x="30" y="194">identifier</text>
+    <text class="dim" x="30" y="207">trigram · ef_search, ERR_Q_0042</text>
+    <line class="hair rstroke" x1="30" y1="216" x2="300" y2="216" stroke-width="1" stroke-dasharray="2 3"/>
+    <g class="row d2"><rect class="red" x="30" y="211" width="26" height="4"/></g>
+    <g class="row d5"><rect class="red" x="30" y="211" width="18" height="4"/></g>
+  </g>
+
+  <!-- The fuse -->
+  <rect class="box" x="320" y="70" width="120" height="152"/>
+  <text class="tx" x="336" y="136">RRF</text>
+  <text class="dim" x="336" y="150">rank, not score</text>
+  <text class="dim" x="336" y="163">1 / (60 + rank)</text>
+
+  <!-- Why rank and not score, stated where the choice is made. -->
+  <line class="hair" x1="470" y1="70" x2="470" y2="222" stroke-width="1"/>
+  <text class="dim" x="486" y="88">cosine distance and ts_rank_cd are not</text>
+  <text class="dim" x="486" y="101">on comparable scales; any normalisation</text>
+  <text class="dim" x="486" y="114">between them drifts with corpus size.</text>
+  <text class="dim" x="486" y="127">rank position does not.</text>
+
+  <!-- Fused output -->
+  <g class="out">
+    <rect class="fuse" x="486" y="150" width="150" height="5"/>
+    <rect class="fuse" x="486" y="162" width="120" height="5"/>
+    <rect class="fuse" x="486" y="174" width="96" height="5"/>
+    <rect class="fuse" x="486" y="186" width="70" height="5"/>
+  </g>
+  <text class="dim" x="650" y="172">one ranked set →</text>
+  <text class="dim" x="650" y="185">cross-encoder</text>
+
+  <line class="hair" x1="30" y1="238" x2="830" y2="238" stroke-width="1"/>
+</svg>

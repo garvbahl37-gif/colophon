@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 150" width="860" height="150"
+     role="img" aria-label="The Colophon pipeline: plan, route, retrieve, rerank, grade, compress, generate, verify.">
+  <style>
+    .bg   { fill: #ffffff; }
+    .rule { stroke: #0a0a0a; }
+    .hair { stroke: #d0d0d6; }
+    .tx   { fill: #0a0a0a; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; }
+    .dim  { fill: #6b6b73; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 9px; }
+    .box  { fill: #f6f6f7; stroke: #e4e4e7; }
+    .lit  { fill: #e8442a; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg   { fill: #0c0c0d; }
+      .rule { stroke: #f4f4f5; }
+      .hair { stroke: #3a3a40; }
+      .tx   { fill: #f4f4f5; }
+      .dim  { fill: #8a8a93; }
+      .box  { fill: #171719; stroke: #2a2a30; }
+    }
+
+    /* Each stage holds its highlight for one eighth of the cycle, in order, so
+       the sequence reads as one request moving through rather than eight
+       independent blinks. */
+    .stage { animation: pass 8s linear infinite; }
+    @keyframes pass {
+      0%, 100% { opacity: 0; }
+      2%       { opacity: 1; }
+      11%      { opacity: 1; }
+      13%      { opacity: 0; }
+    }
+    .s1 { animation-delay: 0s; }    .s2 { animation-delay: 1s; }
+    .s3 { animation-delay: 2s; }    .s4 { animation-delay: 3s; }
+    .s5 { animation-delay: 4s; }    .s6 { animation-delay: 5s; }
+    .s7 { animation-delay: 6s; }    .s8 { animation-delay: 7s; }
+
+    /* The request itself, crossing the full width once per cycle. */
+    .pulse { animation: travel 8s linear infinite; }
+    @keyframes travel {
+      0%   { transform: translateX(0px); }
+      100% { transform: translateX(800px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stage { animation: none; opacity: 1; }
+      .pulse { animation: none; }
+    }
+  </style>
+
+  <rect class="bg" width="860" height="150"/>
+  <line class="rule" x1="30" y1="26" x2="830" y2="26" stroke-width="2"/>
+  <text class="dim" x="30" y="18">COLOPHON · one question through the pipeline</text>
+
+  <!-- The travelling request. -->
+  <g class="pulse"><rect class="lit" x="28" y="24" width="30" height="4"/></g>
+
+  <g>
+    <!-- 8 stages across 800px: 88 wide, 14 gap. -->
+    <g class="s1">
+      <rect class="box" x="30" y="52" width="88" height="42"/>
+      <rect class="lit stage s1" x="30" y="52" width="88" height="3"/>
+      <text class="tx" x="40" y="70">plan</text>
+      <text class="dim" x="40" y="84">decompose</text>
+    </g>
+    <g>
+      <rect class="box" x="132" y="52" width="88" height="42"/>
+      <rect class="lit stage s2" x="132" y="52" width="88" height="3"/>
+      <text class="tx" x="142" y="70">route</text>
+      <text class="dim" x="142" y="84">strategy</text>
+    </g>
+    <g>
+      <rect class="box" x="234" y="52" width="88" height="42"/>
+      <rect class="lit stage s3" x="234" y="52" width="88" height="3"/>
+      <text class="tx" x="244" y="70">retrieve</text>
+      <text class="dim" x="244" y="84">3 arms · RRF</text>
+    </g>
+    <g>
+      <rect class="box" x="336" y="52" width="88" height="42"/>
+      <rect class="lit stage s4" x="336" y="52" width="88" height="3"/>
+      <text class="tx" x="346" y="70">rerank</text>
+      <text class="dim" x="346" y="84">cross-enc.</text>
+    </g>
+    <g>
+      <rect class="box" x="438" y="52" width="88" height="42"/>
+      <rect class="lit stage s5" x="438" y="52" width="88" height="3"/>
+      <text class="tx" x="448" y="70">grade</text>
+      <text class="dim" x="448" y="84">re-hop ↺</text>
+    </g>
+    <g>
+      <rect class="box" x="540" y="52" width="88" height="42"/>
+      <rect class="lit stage s6" x="540" y="52" width="88" height="3"/>
+      <text class="tx" x="550" y="70">compress</text>
+      <text class="dim" x="550" y="84">MMR</text>
+    </g>
+    <g>
+      <rect class="box" x="642" y="52" width="88" height="42"/>
+      <rect class="lit stage s7" x="642" y="52" width="88" height="3"/>
+      <text class="tx" x="652" y="70">generate</text>
+      <text class="dim" x="652" y="84">cited</text>
+    </g>
+    <g>
+      <rect class="box" x="744" y="52" width="86" height="42"/>
+      <rect class="lit stage s8" x="744" y="52" width="86" height="3"/>
+      <text class="tx" x="754" y="70">verify</text>
+      <text class="dim" x="754" y="84">grounded</text>
+    </g>
+  </g>
+
+  <line class="hair" x1="30" y1="116" x2="830" y2="116" stroke-width="1"/>
+  <text class="dim" x="30" y="132">every stage streams its own latency and counts into the answer it produced</text>
+</svg>

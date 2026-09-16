@@ -109,6 +109,16 @@ export function Masthead() {
             </a>
           ))}
 
+          {/* A separate page rather than an anchor: it is a different kind of
+              claim from the rest of the page, and it is the one that can be
+              checked. */}
+          <Link
+            href="/evals"
+            className="mono hidden text-micro text-fg-3 transition-colors hover:text-brand lg:block"
+          >
+            Evaluation
+          </Link>
+
           <Link href="/app" className="btn btn-primary ml-2 px-4 py-2 text-small">
             Open Colophon
           </Link>

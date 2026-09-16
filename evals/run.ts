@@ -20,6 +20,7 @@
 import "../scripts/env";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { writeFileSync } from "node:fs";
 import { sql } from "../lib/db/client";
 import { config } from "../lib/config";
 import { embedQuery } from "../lib/ai/models";
@@ -115,9 +116,24 @@ function ndcgAt(candidates: Candidate[], relevant: string[], k: number): number 
   return idcg === 0 ? 0 : Math.min(1, dcg / idcg);
 }
 
-async function runVariant(variant: Variant): Promise<{ scores: Scores; misses: string[] }> {
+/** One question under one configuration, kept so the dashboard can show it. */
+export interface CaseResult {
+  id: string;
+  question: string;
+  /** Rank of the first genuinely relevant passage, or null if none was found. */
+  firstHit: number | null;
+  ndcg: number;
+  ms: number;
+  /** What actually came back, so a miss can be read rather than guessed at. */
+  top: { title: string; heading: string; score: number }[];
+}
+
+async function runVariant(
+  variant: Variant,
+): Promise<{ scores: Scores; misses: string[]; cases: CaseResult[] }> {
   const scored: Scores[] = [];
   const misses: string[] = [];
+  const cases: CaseResult[] = [];
 
   for (const testCase of golden.cases) {
     if (testCase.absent) continue;
@@ -167,6 +183,19 @@ async function runVariant(variant: Variant): Promise<{ scores: Scores; misses: s
     const firstHit = top.findIndex((c) => isRelevant(c, testCase.relevant));
     if (firstHit === -1) misses.push(testCase.id);
 
+    cases.push({
+      id: testCase.id,
+      question: testCase.question,
+      firstHit: firstHit === -1 ? null : firstHit,
+      ndcg: ndcgAt(top, testCase.relevant, K),
+      ms,
+      top: top.map((c) => ({
+        title: c.documentTitle,
+        heading: c.headingPath.at(-1) ?? "",
+        score: Number((c.rerankScore ?? c.rrfScore).toFixed(4)),
+      })),
+    });
+
     scored.push({
       hitAt1: firstHit === 0 ? 1 : 0,
       hitRate: firstHit >= 0 ? 1 : 0,
@@ -188,6 +217,7 @@ async function runVariant(variant: Variant): Promise<{ scores: Scores; misses: s
       ms: mean((s) => s.ms),
     },
     misses,
+    cases,
   };
 }
 
@@ -221,10 +251,10 @@ async function main() {
   );
   console.log(`  ${"─".repeat(82)}`);
 
-  const results: { variant: Variant; scores: Scores; misses: string[] }[] = [];
+  const results: { variant: Variant; scores: Scores; misses: string[]; cases: CaseResult[] }[] = [];
   for (const variant of VARIANTS) {
-    const { scores, misses } = await runVariant(variant);
-    results.push({ variant, scores, misses });
+    const { scores, misses, cases } = await runVariant(variant);
+    results.push({ variant, scores, misses, cases });
     const best = Boolean(variant.fullPipeline);
     console.log(
       `  ${best ? "\x1b[32m" : ""}${variant.name.padEnd(17)}` +
@@ -251,6 +281,38 @@ async function main() {
     console.log(`\n  \x1b[33mMissed entirely:\x1b[0m ${shipped.misses.join(", ")}`);
     console.log(`  \x1b[2mThese are the cases worth reading the trace for.\x1b[0m`);
   }
+
+  /*
+    Written for the dashboard, not for a CI gate.
+
+    Terminal output is where these numbers went to be read once and forgotten,
+    which is how the suite spent a release reporting that every configuration
+    scored the same without anyone acting on it. A file the app can render
+    makes a result like "reranking costs 200ms and lowers nDCG" something you
+    trip over rather than something you have to go looking for.
+  */
+  writeFileSync(
+    new URL("./results.json", import.meta.url),
+    JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        k: K,
+        chunks: count,
+        questions: answerable,
+        models: { embed: config.models.embed, rerank: config.models.rerank },
+        variants: results.map((r) => ({
+          name: r.variant.name,
+          shipped: Boolean(r.variant.fullPipeline),
+          scores: r.scores,
+          misses: r.misses,
+          cases: r.cases,
+        })),
+      },
+      null,
+      2,
+    ),
+  );
+  console.log(`\n  \x1b[2mWrote evals/results.json — rendered at /evals\x1b[0m`);
 
   if (process.argv.includes("--answers")) await scoreAnswers();
   console.log();

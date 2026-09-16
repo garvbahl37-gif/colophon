@@ -1,73 +1,222 @@
 {
-  "notes": "Each case names the section(s) that genuinely answer the question. A retrieval is correct when a returned passage comes from one of them. `absent` cases have no answer in the corpus at all - the system is scored on refusing rather than on retrieving.",
+  "notes": "Each case names the section(s) that genuinely answer the question. A retrieval is correct when a returned passage comes from one of them. `absent` cases have no answer in the corpus at all - the system is scored on refusing rather than on retrieving. The distractor documents in sample-docs/distractors exist to make this measurable: they discuss timeouts, retries, backoff, jitter, thresholds and breakers at length while describing different mechanisms, so a question about the gateway now has plausible wrong answers to lose to. Before they existed every configuration scored the same, because k=3 returned a sixth of the corpus.",
   "cases": [
     {
       "id": "backoff-formula",
       "question": "What is the formula for the retry delay?",
-      "relevant": ["Retry Policy"],
-      "mustContain": ["jitter"]
+      "relevant": [
+        "Retry Policy"
+      ],
+      "mustContain": [
+        "jitter"
+      ]
     },
     {
       "id": "delay-cap",
       "question": "What is the maximum retry delay?",
-      "relevant": ["Retry Policy"],
-      "mustContain": ["30"]
+      "relevant": [
+        "Retry Policy"
+      ],
+      "mustContain": [
+        "30"
+      ]
     },
     {
       "id": "breaker-threshold",
       "question": "How many failures open the circuit breaker?",
-      "relevant": ["Circuit Breaking"],
-      "mustContain": ["20"]
+      "relevant": [
+        "Circuit Breaking"
+      ],
+      "mustContain": [
+        "20"
+      ]
     },
     {
       "id": "breaker-vs-backoff",
       "question": "How does the retry backoff differ from the circuit breaker timing?",
-      "relevant": ["Retry Policy", "Circuit Breaking"]
+      "relevant": [
+        "Retry Policy",
+        "Circuit Breaking"
+      ]
     },
     {
       "id": "idempotency",
       "question": "Which requests will the gateway retry?",
-      "relevant": ["Retry Policy"],
-      "mustContain": ["idempotent"]
+      "relevant": [
+        "Retry Policy"
+      ],
+      "mustContain": [
+        "idempotent"
+      ]
     },
     {
       "id": "total-deadline",
       "question": "What is the overall deadline across all retries?",
-      "relevant": ["Timeouts"],
-      "mustContain": ["60"]
+      "relevant": [
+        "Timeouts"
+      ],
+      "mustContain": [
+        "60"
+      ]
     },
     {
       "id": "why-full-jitter",
       "question": "Why was equal jitter rejected?",
-      "relevant": ["Rejected Alternatives"]
+      "relevant": [
+        "Rejected Alternatives"
+      ]
     },
     {
       "id": "ef-search-filtered",
       "question": "What ef_search value should I use when filtering to a small subset?",
-      "relevant": ["Tuning ef_search"],
-      "mustContain": ["400"]
+      "relevant": [
+        "Tuning ef_search"
+      ],
+      "mustContain": [
+        "400"
+      ]
     },
     {
       "id": "halfvec",
       "question": "What do I do above 2000 dimensions?",
-      "relevant": ["Dimension Limits"],
-      "mustContain": ["halfvec"]
+      "relevant": [
+        "Dimension Limits"
+      ],
+      "mustContain": [
+        "halfvec"
+      ]
     },
     {
       "id": "hnsw-vs-ivfflat",
       "question": "Why choose HNSW over IVFFlat?",
-      "relevant": ["Choosing an Index Type"]
+      "relevant": [
+        "Choosing an Index Type"
+      ]
     },
     {
       "id": "reindex-cost",
       "question": "How long does reindexing three million chunks take?",
-      "relevant": ["Rebuild Cost"],
-      "mustContain": ["40"]
+      "relevant": [
+        "Rebuild Cost"
+      ],
+      "mustContain": [
+        "40"
+      ]
     },
     {
       "id": "absent-pricing",
       "question": "What does the gateway cost per million requests?",
       "relevant": [],
+      "absent": true
+    },
+    {
+      "id": "gw-attempt-timeout",
+      "question": "What is the gateway per-attempt request timeout?",
+      "relevant": [
+        "Timeouts"
+      ],
+      "mustContain": [
+        "30"
+      ]
+    },
+    {
+      "id": "gw-vs-client-retries",
+      "question": "How many times does the gateway retry a request?",
+      "relevant": [
+        "Retry Policy"
+      ]
+    },
+    {
+      "id": "jitter-rationale",
+      "question": "Why does the retry delay use full jitter rather than a flat delay?",
+      "relevant": [
+        "Retry Policy"
+      ]
+    },
+    {
+      "id": "breaker-half-open",
+      "question": "What happens when the circuit breaker is half-open?",
+      "relevant": [
+        "Circuit Breaking"
+      ]
+    },
+    {
+      "id": "dead-letter-trigger",
+      "question": "When does a queue message go to the dead letter queue?",
+      "relevant": [
+        "Dead Letters"
+      ]
+    },
+    {
+      "id": "ef-search-filtering",
+      "question": "What ef_search value should I use when filtering?",
+      "relevant": [
+        "Tuning ef_search"
+      ]
+    },
+    {
+      "id": "client-max-attempts",
+      "question": "What is maxAttempts in the platform HTTP client library?",
+      "relevant": [
+        "Client Retry Semantics"
+      ],
+      "mustContain": [
+        "2"
+      ]
+    },
+    {
+      "id": "pool-acquire",
+      "question": "How long does a caller wait for a database connection before failing?",
+      "relevant": [
+        "Acquire Timeout"
+      ],
+      "mustContain": [
+        "5"
+      ]
+    },
+    {
+      "id": "stale-if-error",
+      "question": "How long does the edge serve a stale object when the origin returns 5xx?",
+      "relevant": [
+        "Edge TTLs"
+      ],
+      "mustContain": [
+        "86400"
+      ]
+    },
+    {
+      "id": "escalation-ack",
+      "question": "How long does the first responder have to acknowledge a page?",
+      "relevant": [
+        "Escalation Ladder"
+      ],
+      "mustContain": [
+        "15"
+      ]
+    },
+    {
+      "id": "pool-backoff-shape",
+      "question": "Is the connection pool backoff linear or exponential?",
+      "relevant": [
+        "Backoff on Exhaustion"
+      ],
+      "mustContain": [
+        "linear"
+      ]
+    },
+    {
+      "id": "origin-timeout",
+      "question": "How long does the CDN wait for origin response headers?",
+      "relevant": [
+        "Origin Timeouts"
+      ],
+      "mustContain": [
+        "45"
+      ]
+    },
+    {
+      "id": "absent-grpc",
+      "question": "Does the gateway support gRPC streaming?",
       "absent": true
     }
   ]

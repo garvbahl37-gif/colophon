@@ -23,6 +23,32 @@ function extFor(filename: string) {
   return filename.toLowerCase().split(".").pop() ?? "";
 }
 
+/**
+ * A title is a label, and some pages do not supply one.
+ *
+ * A social post's <title> is the entire post — measured in production at over
+ * 300 characters — and that string does not merely look wrong in a list. The
+ * breadcrumb prepends it to every chunk's indexed text, so a 300-character
+ * title competes with the passage it is supposed to be labelling, and version
+ * identity compares two long strings that differ by a trailing ellipsis.
+ *
+ * Cut at a sentence if there is one early enough, otherwise at a word boundary.
+ * Nothing is lost that mattered: the full text is still the document.
+ */
+const TITLE_LIMIT = 120;
+
+function normaliseTitle(raw: string): string {
+  const flat = raw.replace(/\s+/g, " ").trim();
+  if (flat.length <= TITLE_LIMIT) return flat;
+
+  const sentence = flat.slice(0, TITLE_LIMIT).match(/^(.*?[.!?])\s/);
+  if (sentence && sentence[1].length > 30) return sentence[1];
+
+  const cut = flat.slice(0, TITLE_LIMIT);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 40 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
 function titleFrom(filename: string, text: string) {
   const firstHeading = text.match(/^#\s+(.+)$/m)?.[1]?.trim();
   if (firstHeading && firstHeading.length < 120) return firstHeading;
@@ -47,7 +73,7 @@ async function loadPdf(buffer: Buffer, filename: string): Promise<LoadedDocument
   const text = parts.join("\n\n");
 
   return {
-    title: pdfTitle(pdf, text, filename),
+    title: normaliseTitle(pdfTitle(pdf, text, filename)),
     sourceType: "pdf",
     text,
     pageBreaks,
@@ -98,7 +124,7 @@ async function loadDocx(buffer: Buffer, filename: string): Promise<LoadedDocumen
   const { value: html } = await mammoth.convertToHtml({ buffer });
   const text = turndown.turndown(html);
   return {
-    title: titleFrom(filename, text),
+    title: normaliseTitle(titleFrom(filename, text)),
     sourceType: "docx",
     text,
     metadata: {},
@@ -112,7 +138,7 @@ function loadHtml(html: string, filename: string, url?: string): LoadedDocument 
   const root = $("article").length ? $("article") : $("main").length ? $("main") : $("body");
   const text = turndown.turndown(root.html() ?? "");
   return {
-    title: pageTitle || titleFrom(filename, text),
+    title: normaliseTitle(pageTitle || titleFrom(filename, text)),
     sourceType: url ? "url" : "html",
     text,
     metadata: url ? { url } : {},
@@ -122,7 +148,7 @@ function loadHtml(html: string, filename: string, url?: string): LoadedDocument 
 function loadMarkdown(raw: string, filename: string): LoadedDocument {
   const { data, content } = matter(raw);
   return {
-    title: (data.title as string) || titleFrom(filename, content),
+    title: normaliseTitle((data.title as string) || titleFrom(filename, content)),
     sourceType: "markdown",
     text: content,
     metadata: data ?? {},
@@ -143,7 +169,7 @@ export async function loadFile(
   if (ext === "html" || ext === "htm") return loadHtml(raw, filename);
   if (ext === "md" || ext === "mdx" || ext === "markdown") return loadMarkdown(raw, filename);
   return {
-    title: titleFrom(filename, raw),
+    title: normaliseTitle(titleFrom(filename, raw)),
     sourceType: "text",
     text: raw,
     metadata: {},
@@ -164,7 +190,7 @@ export async function loadUrl(url: string): Promise<LoadedDocument> {
   const text = body.toString("utf8");
   if (contentType.includes("text/html")) return loadHtml(text, filename, finalUrl);
   return {
-    title: filename,
+    title: normaliseTitle(filename),
     sourceType: "url",
     text,
     metadata: { url: finalUrl },

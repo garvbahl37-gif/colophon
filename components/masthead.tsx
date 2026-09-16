@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * The masthead.
@@ -24,26 +24,77 @@ const SECTIONS = [
 ];
 
 export function Masthead() {
-  const [progress, setProgress] = useState(0);
   const [condensed, setCondensed] = useState(false);
   const [active, setActive] = useState<string | null>(null);
+  const [marks, setMarks] = useState<{ id: string; at: number }[]>([]);
+  const rule = useRef<HTMLDivElement>(null);
 
+  /*
+    The rule is written to directly, not rendered.
+
+    It used to be React state set on every animation frame, with a 120ms
+    transition on the transform. Both are wrong for a scroll-linked value and
+    they compounded: the transition spent every frame interpolating toward a
+    target that had already moved, so the bar permanently lagged the scroll and
+    stuttered catching up, while the state update re-rendered the whole
+    masthead -- wordmark, six nav links, two buttons -- sixty times a second to
+    move one element two pixels.
+
+    Scroll position is not application state. It is a number the browser already
+    knows, and the only thing that needs it is one transform, so it goes
+    straight there and nothing re-renders. `condensed` stays in state because it
+    changes twice in a whole page and React drops the identical updates.
+  */
   useEffect(() => {
     let frame = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const max = document.documentElement.scrollHeight - window.innerHeight;
-        setProgress(max > 0 ? Math.min(1, window.scrollY / max) : 0);
-        setCondensed(window.scrollY > 120);
-      });
+    const paint = () => {
+      frame = 0;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const ratio = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+      if (rule.current) rule.current.style.transform = `scaleX(${ratio})`;
+      setCondensed(window.scrollY > 120);
     };
-    onScroll();
+    const onScroll = () => {
+      // Coalesce to one paint per frame rather than cancelling and rescheduling,
+      // which throws away the work already queued for this frame.
+      if (frame === 0) frame = requestAnimationFrame(paint);
+    };
+    paint();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      cancelAnimationFrame(frame);
+      if (frame) cancelAnimationFrame(frame);
     };
+  }, []);
+
+  /*
+    Where each section falls along the whole scroll, as a fraction.
+
+    This turns the progress rule into the edge of a book: the marks are the
+    sections, the filled part is how much has been read. A colophon is a note
+    about how a book was made, so a reading measure is the one scroll-linked
+    device this page has any business having -- and it answers "how much is
+    left", which a bare bar does not.
+
+    Recomputed on resize because every position depends on the page height, and
+    a stale set of marks is worse than none.
+  */
+  useEffect(() => {
+    const measure = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (max <= 0) return setMarks([]);
+      setMarks(
+        SECTIONS.map((s) => {
+          const node = document.getElementById(s.id);
+          if (!node) return null;
+          const top = node.getBoundingClientRect().top + window.scrollY - 80;
+          return { id: s.id, at: Math.min(1, Math.max(0, top / max)) };
+        }).filter((m): m is { id: string; at: number } => m != null),
+      );
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   }, []);
 
   useEffect(() => {
@@ -125,12 +176,31 @@ export function Masthead() {
         </nav>
       </div>
 
-      {/* Reading progress. One hairline, the accent colour, no chrome. */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-brand"
-        style={{ transform: `scaleX(${progress})`, transition: "transform 120ms linear" }}
-      />
+      {/* The reading measure. Marks sit under the fill, so the accent swallows
+          each one as it is passed and what remains is what is left to read. */}
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-0.5">
+        {marks.map((m) => (
+          <span
+            key={m.id}
+            /* Two pixels, not one: a hairline mark on a two-pixel rule is
+               invisible at any sensible viewing distance, and a mark nobody can
+               count is not a measure. */
+            className={`absolute top-0 h-0.5 w-[2px] transition-colors duration-300 ${
+              active === m.id ? "bg-fg" : "bg-fg-3/45"
+            }`}
+            style={{ left: `${m.at * 100}%` }}
+          />
+        ))}
+        {/* Positioned so it paints above the marks. An absolutely positioned
+            sibling stacks over a static one whatever the DOM order, which had
+            the marks showing through the accent as dark ticks instead of being
+            covered by it. */}
+        <div
+          ref={rule}
+          className="absolute inset-0 origin-left bg-brand will-change-transform"
+          style={{ transform: "scaleX(0)" }}
+        />
+      </div>
     </header>
   );
 }

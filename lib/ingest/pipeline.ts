@@ -89,6 +89,24 @@ async function ingest(
     readable, and "what changed" remains answerable -- none of which survives
     overwriting a row.
   */
+  /*
+    A URL identifies a document. A filename does not.
+
+    Matching on source_uri alone meant two unrelated uploads that happened to
+    share a name -- notes.md, README.md, report.pdf, which is most of what people
+    upload -- were treated as revisions of each other, and the second silently
+    superseded the first. Not deleted: hidden, from search and from the listing,
+    with nothing to say it had happened. Measured: uploading a payments runbook
+    and then a kubernetes runbook, both named notes.md, left one document.
+
+    So a fetched URL still versions on its address, which genuinely identifies
+    it, and a file has to agree on its title as well. The title is derived from
+    the content, so an edited document keeps it and an unrelated one does not.
+    When that guess is wrong the result is two documents where there should have
+    been one -- visible, and fixable by the reader -- rather than one where there
+    should have been two, which is invisible and is not.
+  */
+  const versionsOnUriAlone = doc.sourceType === "url";
   const [previous] = opts.sourceUri
     ? await sql<{ id: string; version: number }[]>`
         SELECT id, version FROM documents
@@ -96,6 +114,7 @@ async function ingest(
           AND owner_id IS NOT DISTINCT FROM ${opts.ownerId}
           AND superseded_by IS NULL
           AND status = 'ready'
+          AND (${versionsOnUriAlone} OR title = ${doc.title})
         ORDER BY version DESC
         LIMIT 1
       `
@@ -298,19 +317,29 @@ export async function deleteDocument(id: string, ownerId: string) {
     source for the same owner goes, which is exactly the set the version chain
     was built from. A row with no source_uri has no lineage and deletes alone.
   */
-  const [target] = await sql<{ source_uri: string | null }[]>`
-    SELECT source_uri FROM documents WHERE id = ${id} AND owner_id = ${ownerId}
-  `;
-  if (!target) return;
+  /*
+    Follow the actual chain, not the name.
 
-  if (target.source_uri) {
-    await sql`
-      DELETE FROM documents
-      WHERE owner_id = ${ownerId} AND source_uri = ${target.source_uri}
-    `;
-  } else {
-    await sql`DELETE FROM documents WHERE id = ${id} AND owner_id = ${ownerId}`;
-  }
+    Deleting everything sharing a source_uri removed unrelated documents that
+    merely had the same filename -- the same mistake versioning made, with worse
+    consequences, because this one does not hide the row, it destroys it. The
+    supersedes links are the real lineage, so they are what gets walked: up from
+    the target to its ancestors and down to anything that replaced it.
+  */
+  await sql`
+    WITH RECURSIVE lineage AS (
+      SELECT id, supersedes, superseded_by FROM documents
+      WHERE id = ${id} AND owner_id = ${ownerId}
+
+      UNION
+
+      SELECT d.id, d.supersedes, d.superseded_by
+      FROM documents d
+      JOIN lineage l ON d.id = l.supersedes OR d.superseded_by = l.id OR d.id = l.superseded_by
+      WHERE d.owner_id = ${ownerId}
+    )
+    DELETE FROM documents WHERE id IN (SELECT id FROM lineage)
+  `;
 }
 
 export async function listDocuments(ownerId: string) {

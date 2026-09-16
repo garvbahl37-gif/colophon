@@ -40,10 +40,6 @@ export function extractMarkers(text: string, max: number): number[] {
   return [...found].sort((a, b) => a - b);
 }
 
-/** True when a sentence carries at least one citation in any bracket style. */
-export function hasMarker(text: string): boolean {
-  return new RegExp(MARKER.source).test(text);
-}
 
 /**
  * The answer, broken into the units a citation attaches to.
@@ -57,7 +53,7 @@ export function hasMarker(text: string): boolean {
  * Fenced code is removed first. A code block is quoted material, not a claim,
  * and its full stops would otherwise split it into several imaginary ones.
  */
-export interface Claim {
+interface Claim {
   text: string;
   /** Markers cited by this sentence, ascending. Empty means uncited. */
   markers: number[];

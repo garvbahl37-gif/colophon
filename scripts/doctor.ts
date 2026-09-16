@@ -86,16 +86,23 @@ report("fail", drift.n, "recorded passage counts match the passages",
   `${drift.n} documents report a chunk count that disagrees with the table`,
   "re-ingest; the row's summary drifted from its contents");
 
-/* Two current versions of one source means the version chain broke. */
+/*
+  Two current versions of one document means the version chain broke.
+
+  Grouped by title as well as source, matching how ingestion decides identity:
+  two unrelated uploads called notes.md are two documents, not a broken chain,
+  and a checker that called that a failure would be training the reader to
+  ignore it.
+*/
 const [dupes] = await sql<{ n: number }[]>`
   SELECT count(*)::int AS n FROM (
-    SELECT source_uri, coalesce(owner_id, ''), count(*)
+    SELECT source_uri, coalesce(owner_id, ''), title, count(*)
     FROM documents
     WHERE superseded_by IS NULL AND source_uri IS NOT NULL AND status = 'ready'
-    GROUP BY 1, 2 HAVING count(*) > 1
+    GROUP BY 1, 2, 3 HAVING count(*) > 1
   ) x
 `;
-report("fail", dupes.n, "one current version per source",
+report("fail", dupes.n, "one current version per document",
   `${dupes.n} sources have more than one current version`,
   "the supersede step did not run; the newest should retire the others");
 

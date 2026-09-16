@@ -64,7 +64,7 @@ export interface CachedGrounding {
 const SIMILARITY_FLOOR = 0.9;
 
 /** Identifies the corpus this answer was produced from. */
-export function scopeKey(documentIds: string[]): string {
+function scopeKey(documentIds: string[]): string {
   return createHash("sha256").update([...documentIds].sort().join(",")).digest("hex").slice(0, 32);
 }
 

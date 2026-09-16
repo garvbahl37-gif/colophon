@@ -55,7 +55,7 @@ const SUSPICIOUS: [RegExp, string][] = [
   [/\b(respond|reply|answer|output)\s+(only\s+)?with\s+(exactly\s+)?["'`]/i, "output-hijack"],
 ];
 
-export interface Isolated {
+interface Isolated {
   /** Safe to place inside the prompt. Content is unchanged; structure is not. */
   text: string;
   /** Whether the passage reads like an attempt to instruct the model. */

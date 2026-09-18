@@ -188,11 +188,22 @@ Every stage names its own backend in one environment variable:
 
 ```
 ollama:gpt-oss:120b                Ollama Cloud
+google:gemini-2.5-flash            Google, direct
+google:text-embedding-004          Google embeddings, direct
 gateway:anthropic/claude-sonnet-5  Vercel AI Gateway
 supabase:gte-small                 Supabase Edge Function
 local:Xenova/bge-base-en-v1.5      in-process ONNX (never serverless)
 llm:listwise                       rerank with the grading model
 ```
+
+**Why Google is worth its own backend.** It is the only provider here serving
+both generation and embeddings, so one key covers a pipeline that otherwise
+straddles Ollama and a Supabase Edge Function. More importantly it answers
+concurrent requests concurrently. Ollama Cloud does not — measured, four
+parallel calls take four times as long as one — and that single fact is why
+contextualising a document is minutes of wall clock, why the answer cache exists,
+and why the router skips reranking on lookups. A provider that parallelises
+changes the arithmetic behind all three.
 
 This exists because no provider is best at all four jobs and some cannot do all
 four at all — Ollama Cloud serves strong tool-calling chat models but exposes

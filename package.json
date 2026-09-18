@@ -19,6 +19,7 @@
     "corpus:check": "tsx scripts/doctor.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.75",
     "@ai-sdk/openai-compatible": "^3.0.48",
     "@ai-sdk/react": "^4.0.102",
     "@huggingface/transformers": "^4.2.0",
@@ -72,6 +73,9 @@
       "esbuild",
       "unrs-resolver",
       "protobufjs"
-    ]
+    ],
+    "overrides": {
+      "@ai-sdk/provider": "4.0.17"
+    }
   }
 }

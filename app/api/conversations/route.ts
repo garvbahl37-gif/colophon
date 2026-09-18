@@ -29,9 +29,9 @@ export async function GET(req: Request) {
     const owner = await currentOwner();
     const id = new URL(req.url).searchParams.get("id");
     if (id) {
-      const messages = await loadConversation(id, owner);
-      if (!messages) return Response.json({ error: "Not found" }, { status: 404 });
-      return Response.json({ id, messages });
+      const found = await loadConversation(id, owner);
+      if (!found) return Response.json({ error: "Not found" }, { status: 404 });
+      return Response.json({ id, messages: found.messages, scope: found.scope });
     }
     return Response.json({ conversations: await listConversations(owner) });
   } catch (error) {
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     throw error;
   }
 
-  let body: { id?: string | null; messages?: unknown[] };
+  let body: { id?: string | null; messages?: unknown[]; scope?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -70,6 +70,7 @@ export async function POST(req: Request) {
       id: body.id ?? null,
       ownerId: await currentOwner(),
       messages: messages as never,
+      scope: Array.isArray(body.scope) ? (body.scope as string[]).slice(0, 200) : [],
     });
     return Response.json(saved);
   } catch (error) {

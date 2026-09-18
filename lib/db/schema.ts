@@ -157,11 +157,24 @@ CREATE TABLE IF NOT EXISTS conversations (
   owner_id    text NOT NULL,
   title       text NOT NULL,
   messages    jsonb NOT NULL DEFAULT '[]'::jsonb,
+  -- Which documents were selected when it was asked. Reopening a thread
+  -- without its scope silently changes what the question meant.
+  scope       jsonb NOT NULL DEFAULT '[]'::jsonb,
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS conversations_owner
   ON conversations (owner_id, updated_at DESC);
+
+-- Columns added after a table already existed somewhere.
+--
+-- CREATE TABLE IF NOT EXISTS is a no-op against a deployment that already has
+-- the table, so a column added to the definition above reaches a fresh
+-- database and never reaches production. The failure is quiet in the worst
+-- way: inserts start erroring on a column that does not exist, the client
+-- swallows it, and the feature simply stops working for everyone who already
+-- had an account. Every additive change goes here as well as above.
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS scope jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 -- Records the dimension the tables were actually built for.
 CREATE TABLE IF NOT EXISTS index_meta (

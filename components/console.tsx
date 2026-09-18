@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/util/cn";
 import { breadcrumb } from "@/lib/util/breadcrumb";
 import { plainText } from "@/lib/util/plain-text";
@@ -17,10 +17,6 @@ import { HistoryRail, useConversations } from "./history";
 import { RetrievalRoundView } from "./passages";
 import { Thinking } from "./thinking";
 import { ChannelLegend, TraceStrip } from "./trace";
-
-/** Which saved conversation this browser had open. The thread itself is
-    server-side; this is only a bookmark so a reload reopens the same one. */
-const ACTIVE_KEY = "colophon.activeConversation";
 
 interface Extracted {
   text: string;
@@ -191,83 +187,93 @@ export function Console() {
   */
   const { conversations, refresh: refreshHistory } = useConversations();
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const restored = useRef(false);
-
-  // Reopen whatever was last being read, so a reload lands where you left off.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      let last: string | null = null;
-      try {
-        last = localStorage.getItem(ACTIVE_KEY);
-      } catch {
-        /* private browsing: start a fresh thread rather than fail */
-      }
-      if (last) {
-        try {
-          const res = await fetch(`/api/conversations?id=${encodeURIComponent(last)}`);
-          if (res.ok && !cancelled) {
-            const data = await res.json();
-            setMessages((data.messages ?? []) as ColophonUIMessage[]);
-            setConversationId(last);
-          }
-        } catch {
-          /* unreachable history is not a reason to block the composer */
-        }
-      }
-      restored.current = true;
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [setMessages]);
+  /*
+    Mirrored in a ref because submit writes the thread before React has
+    re-rendered, and a save reading the render's copy would post a null id and
+    create a second conversation for the same exchange.
+  */
+  const conversationIdRef = useRef<string | null>(null);
 
   /*
-    Saved when a turn finishes, not while it streams.
+    Every visit starts a new conversation.
 
-    Writing mid-stream would store a half-written answer and spend a database
-    round trip per token. The id comes back from the first save, so the second
-    exchange updates the row the first one created instead of starting a new
-    thread each time.
+    It used to reopen whatever was last read, which sounds friendlier and is
+    the bug: the old thread came back silently, the next question was appended
+    to it, and the History entry kept the title of the first question ever asked
+    in it. Type three unrelated questions across two days and there is one entry
+    in the list, named after something you asked on Monday -- which reads as the
+    history not recording anything, because nothing new ever appears in it.
+
+    So the composer is always a fresh thread, and an old one is reopened by
+    clicking it. Nothing is lost by this: the previous conversation was saved
+    the moment it was asked and sits at the top of the list.
   */
-  useEffect(() => {
-    if (!restored.current || streaming || messages.length === 0) return;
-    let cancelled = false;
-    (async () => {
+
+  /*
+    Saved twice: the moment a question is asked, and again when its answer
+    settles.
+
+    Only the second one existed, and on a provider that takes half a minute to
+    answer that meant asking a question and finding History empty for the whole
+    time it was thinking -- the thread appeared only once the answer landed,
+    which reads as the history not working rather than as it waiting. The first
+    write is what puts the question in the list immediately; the second
+    replaces it with the finished exchange.
+
+    Both go through one function so the two paths cannot drift, and the id from
+    the first is what the second updates rather than starting a second thread.
+  */
+  const saveThread = useCallback(
+    async (thread: ColophonUIMessage[], scoped: Set<string>) => {
+      if (thread.length === 0) return;
       try {
         const res = await fetch("/api/conversations", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id: conversationId, messages }),
+          body: JSON.stringify({
+            id: conversationIdRef.current,
+            messages: thread,
+            scope: [...scoped],
+          }),
         });
-        if (!res.ok || cancelled) return;
+        /*
+          Reported, not swallowed. A save that fails silently is how a schema
+          drift -- a column present locally and missing in production --
+          becomes "the history does not work" with nothing anywhere to say
+          why. The failure still must not break the chat, so it is a warning
+          and not a thrown error.
+        */
+        if (!res.ok) {
+          console.warn("Colophon: conversation not saved", res.status, await res.text().catch(() => ""));
+          return;
+        }
         const saved = await res.json();
-        if (saved.id && saved.id !== conversationId) {
+        if (saved.id && saved.id !== conversationIdRef.current) {
+          conversationIdRef.current = saved.id;
           setConversationId(saved.id);
-          try {
-            localStorage.setItem(ACTIVE_KEY, saved.id);
-          } catch {
-            /* the thread is still saved; only the pointer is lost */
-          }
         }
         void refreshHistory();
-      } catch {
-        /* an unsaved turn is recoverable; a broken chat is not */
+      } catch (error) {
+        // An unsaved turn is recoverable; a broken chat is not.
+        console.warn("Colophon: conversation not saved", error);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [messages, streaming, conversationId, refreshHistory]);
+    },
+    [refreshHistory],
+  );
 
+  // Written back when the turn settles, replacing the question-only row with
+  // the finished exchange.
+  useEffect(() => {
+    if (streaming || messages.length === 0) return;
+    void saveThread(messages, scope);
+  }, [messages, streaming, scope, saveThread]);
+
+  /* The ref is what a save reads, the state is what the list highlights, and
+     they are set together so the two cannot disagree about which thread is
+     open. */
   function rememberActive(id: string | null) {
     setConversationId(id);
-    try {
-      if (id) localStorage.setItem(ACTIVE_KEY, id);
-      else localStorage.removeItem(ACTIVE_KEY);
-    } catch {
-      /* nothing to remember */
-    }
+    conversationIdRef.current = id;
   }
 
   async function openConversation(id: string) {
@@ -275,6 +281,9 @@ export function Console() {
     if (!res.ok) return;
     const data = await res.json();
     setMessages((data.messages ?? []) as ColophonUIMessage[]);
+    // The scope is part of the thread: the same words asked of two documents
+    // are a different question from the same words asked of the whole corpus.
+    setScope(new Set(Array.isArray(data.scope) ? (data.scope as string[]) : []));
     rememberActive(id);
     setShowRail(false);
   }
@@ -313,10 +322,21 @@ export function Console() {
     // The auto-grow handler writes an inline height; clearing the value does
     // not undo it, so the composer would stay tall after every send.
     if (composerRef.current) composerRef.current.style.height = "auto";
+    const asked: ColophonUIMessage = {
+      id: `local-${Date.now()}`,
+      role: "user",
+      parts: [{ type: "text", text: question }],
+    } as ColophonUIMessage;
+
     void sendMessage(
       { text: question },
       { body: { mode, documentIds: [...scope] } },
     );
+
+    // Immediately, so the question is in History while it is being answered
+    // rather than half a minute later.
+    void saveThread([...messages, asked], scope);
+
     // Ingest can finish while a question is in flight; keep the counters honest.
     void refresh();
   }

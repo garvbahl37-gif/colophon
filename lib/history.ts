@@ -27,6 +27,9 @@ export interface ConversationSummary {
   updatedAt: string;
 }
 
+/** Document ids the reader had selected, so reopening restores the same scope. */
+export type Scope = string[];
+
 /** Enough to be a list, not enough to be a payload: messages are left behind. */
 export async function listConversations(ownerId: string): Promise<ConversationSummary[]> {
   const rows = await sql<{ id: string; title: string; turns: number; updated_at: Date }[]>`
@@ -46,11 +49,14 @@ export async function listConversations(ownerId: string): Promise<ConversationSu
   }));
 }
 
-export async function loadConversation(id: string, ownerId: string): Promise<unknown[] | null> {
-  const [row] = await sql<{ messages: unknown[] }[]>`
-    SELECT messages FROM conversations WHERE id = ${id} AND owner_id = ${ownerId}
+export async function loadConversation(
+  id: string,
+  ownerId: string,
+): Promise<{ messages: unknown[]; scope: Scope } | null> {
+  const [row] = await sql<{ messages: unknown[]; scope: Scope | null }[]>`
+    SELECT messages, scope FROM conversations WHERE id = ${id} AND owner_id = ${ownerId}
   `;
-  return row?.messages ?? null;
+  return row ? { messages: row.messages, scope: row.scope ?? [] } : null;
 }
 
 /**
@@ -77,14 +83,24 @@ export async function saveConversation(args: {
   id: string | null;
   ownerId: string;
   messages: { role?: string; parts?: { type?: string; text?: string }[] }[];
+  /*
+    The documents the question was asked against, stored with it.
+
+    A conversation scoped to two sources means something different from the
+    same words asked of the whole corpus, and reopening it without the scope
+    silently changes what it was. This is the part of a thread that is not in
+    its text.
+  */
+  scope: Scope;
 }): Promise<{ id: string; title: string }> {
   const title = titleFrom(args.messages);
   const payload = sql.json(args.messages as never);
+  const scope = sql.json(args.scope as never);
 
   if (args.id) {
     const [updated] = await sql<{ id: string }[]>`
       UPDATE conversations
-      SET messages = ${payload}, title = ${title}, updated_at = now()
+      SET messages = ${payload}, title = ${title}, scope = ${scope}, updated_at = now()
       WHERE id = ${args.id} AND owner_id = ${args.ownerId}
       RETURNING id
     `;
@@ -96,8 +112,8 @@ export async function saveConversation(args: {
 
   const id = nanoid(12);
   await sql`
-    INSERT INTO conversations (id, owner_id, title, messages)
-    VALUES (${id}, ${args.ownerId}, ${title}, ${payload})
+    INSERT INTO conversations (id, owner_id, title, messages, scope)
+    VALUES (${id}, ${args.ownerId}, ${title}, ${payload}, ${scope})
   `;
   return { id, title };
 }

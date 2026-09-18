@@ -48,7 +48,32 @@ declare global {
 export const sql: postgres.Sql =
   globalThis.__colophonSql ??
   postgres(url, {
-    max: 12,
+    /*
+      Three, not twelve, because the pool being drawn from is not this one.
+
+      Measured against production: 25 concurrent requests to a single endpoint
+      returned 10 failures reading
+
+        (EMAXCONNSESSION) max clients reached in session mode
+        - max clients are limited to pool_size: 15
+
+      The database sits behind Supabase's pooler in session mode, where a
+      client holds its Postgres connection for the whole session rather than
+      the whole transaction, and the ceiling for the entire deployment is 15.
+      Asking for 12 of those from one serverless instance means two warm
+      instances can exhaust the deployment, and a third gets nothing -- which
+      surfaced as intermittent 503s on the conversation list while a chat
+      request was in flight, because chat holds a connection across a
+      twenty-second model call.
+
+      A request here uses one connection at a time (the three retrieval arms
+      are fused in a single statement), so a small ceiling costs nothing and
+      leaves room for the other instances. The real fix is the transaction
+      pooler on port 6543, which returns the connection per transaction
+      instead of per session; `prepare: false` below is already what that
+      mode requires, so it is a URL change and nothing more.
+    */
+    max: 3,
     idle_timeout: 20,
     prepare: false,
     connection: { search_path: searchPath },

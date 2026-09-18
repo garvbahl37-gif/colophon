@@ -74,7 +74,13 @@ export const sql: postgres.Sql =
       mode requires, so it is a URL change and nothing more.
     */
     max: 3,
-    idle_timeout: 20,
+    /*
+      Five seconds, because a warm instance between requests is still holding
+      client slots that another instance needs. Twenty seconds of grace is
+      right for a long-lived server, where reconnecting is the expensive part;
+      here the scarce resource is the slot, not the handshake.
+    */
+    idle_timeout: 5,
     prepare: false,
     connection: { search_path: searchPath },
     // Supabase and every other hosted Postgres terminates TLS at the pooler.

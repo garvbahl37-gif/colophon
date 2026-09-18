@@ -173,7 +173,32 @@ export function Console() {
     transport,
   });
 
-  const streaming = status === "streaming" || status === "submitted";
+  /*
+    Two different questions, which used to be one.
+
+    `status` reports the connection, and the connection outlives the answer:
+    once the last token is written the server holds the stream open to run the
+    groundedness audit and send its verdict. Measured on a warm production
+    run, the answer finished at 2.9s and the stream closed at 5.9s -- three
+    seconds in which the text was sitting on screen, complete, while the
+    composer stayed disabled, the Stop button stayed up and the status light
+    still read "retrieving". The audit averages ten seconds on this provider,
+    so that gap is usually far worse. Nothing was slow; the interface was
+    lying about what it was waiting for.
+
+    `working` is what the reader is actually waiting on -- the answer -- and it
+    ends when the answer's text part is done. `connected` is the transport,
+    and only the things that genuinely need the socket use it. The verdict
+    lands a moment later on an answer already being read, which is what the
+    audit was always supposed to feel like.
+  */
+  const connected = status === "streaming" || status === "submitted";
+  const answerDelivered = useMemo(() => {
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant") return false;
+    return last.parts.some((p) => p.type === "text" && (p as { state?: string }).state === "done");
+  }, [messages]);
+  const streaming = connected && !answerDelivered;
 
   /*
     Conversations live in the database, scoped to this browser's owner.

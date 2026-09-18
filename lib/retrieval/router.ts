@@ -41,10 +41,10 @@ export interface Strategy {
 }
 
 /** A question that names something exactly: an error code, a setting, a version. */
-const IDENTIFIER = /\b(?:[A-Z][A-Z0-9]*_[A-Z0-9_]+|[a-z]+_[a-z_]+|v\d+\.\d+|\d{3,}|[A-Za-z]+\(\)|ERR[_A-Z0-9]+)\b/;
-const QUOTED = /["'`][^"'`]{3,}["'`]/;
-const COMPARISON = /\b(versus|vs\.?|compare|difference|differ|both|either|rather than|instead of|against)\b/i;
-const SUMMARY = /\b(summar|overview|outline|gist|what (?:is|are) .{0,20}about|key points|tl;?dr)/i;
+export const IDENTIFIER = /\b(?:[A-Z][A-Z0-9]*_[A-Z0-9_]+|[a-z]+_[a-z_]+|v\d+\.\d+|\d{3,}|[A-Za-z]+\(\)|ERR[_A-Z0-9]+)\b/;
+export const QUOTED = /["'`][^"'`]{3,}["'`]/;
+export const COMPARISON = /\b(versus|vs\.?|compare|difference|differ|both|either|rather than|instead of|against)\b/i;
+export const SUMMARY = /\b(summar|overview|outline|gist|what (?:is|are) .{0,20}about|key points|tl;?dr)/i;
 
 export function chooseStrategy(plan: QueryPlan, question: string): Strategy {
   const base = config.retrieval;

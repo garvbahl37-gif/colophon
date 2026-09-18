@@ -21,7 +21,7 @@ import type { ToolEvent } from "@/lib/agent/tools";
 import { diversify, fitBudget, orderForAttention } from "./compress";
 import { checkGroundedness, gradeSufficiency, type Groundedness } from "./grade";
 import { expandNeighbours, fuseAcrossQueries, hybridSearch } from "./hybrid";
-import { lexicalQuery, planQuery } from "./query-planner";
+import { fastPlan, lexicalQuery, planQuery } from "./query-planner";
 import { rerankCandidates } from "./rerank";
 import type { Candidate, TraceSpan, TraceStage } from "./types";
 
@@ -522,10 +522,16 @@ async function runPipeline(args: {
     "plan",
     "query understanding",
     async (update) => {
-      const p = await planQuery(question, history);
+      // A question the router will send down the lookup path needs no model
+      // call to plan: see fastPlan. The trace says which happened, because a
+      // pipeline that silently skips a stage is indistinguishable from one
+      // whose stage is broken.
+      const quick = fastPlan(question, history);
+      const p = quick ?? (await planQuery(question, history));
       update({
         detail: p.needsRetrieval ? p.standalone : "no retrieval needed",
         metrics: {
+          planner: quick ? "skipped — reads as a lookup" : config.models.plan,
           intent: p.intent,
           "sub-queries": p.subQueries.length,
           keywords: p.keywords.length,

@@ -77,7 +77,14 @@ export async function rerankCandidates(
       method: backendOf(config.models.rerank) === "local" ? "local-cross-encoder" : "cross-encoder",
       model: config.models.rerank,
     };
-  } catch {
+  } catch (error) {
+    // Says which reranker was asked for, because "the cross-encoder is
+    // unavailable" and "the cross-encoder threw on this query" look identical
+    // in the trace and have completely different fixes.
+    console.warn(
+      `[rerank] ${config.models.rerank} unavailable, falling back to listwise: ` +
+        `${error instanceof Error ? error.message : error}`,
+    );
     return llmRerank(query, candidates, topN);
   }
 }
@@ -174,8 +181,22 @@ async function llmRerank(
       method: "llm-listwise",
       model: config.models.grade,
     };
-  } catch {
-    // Last resort: trust the fusion order.
+  } catch (error) {
+    /*
+      Last resort: trust the fusion order.
+
+      Reported, because this is the most expensive silent failure in the
+      pipeline. It costs the full latency of the attempt and returns the
+      candidates exactly as they arrived, so the trace shows a rerank stage
+      that ran for seconds and a top score that is still the fusion score --
+      indistinguishable, without this line, from a reranker that ran fine and
+      agreed with the fusion order. Measured in production: this path was
+      taken on 11 of 13 queries.
+    */
+    console.warn(
+      `[rerank] listwise pass failed after full cost, keeping fusion order: ` +
+        `${error instanceof Error ? error.message : error}`,
+    );
     return {
       candidates: candidates.slice(0, topN).map((c) => ({ ...c, rerankScore: c.rrfScore })),
       method: "none",

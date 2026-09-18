@@ -84,15 +84,12 @@ export function CorpusRail({
   onScopeChange,
   onChanged,
   error,
-  onCollapse,
 }: {
   documents: DocumentRow[];
   scope: Set<string>;
   onScopeChange: (next: Set<string>) => void;
   onChanged: () => void;
   error: string | null;
-  /** Absent on narrow viewports, where the rail is a drawer with a scrim. */
-  onCollapse?: () => void;
 }) {
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -170,23 +167,10 @@ export function CorpusRail({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-baseline justify-between gap-3 border-b border-line px-4 py-3">
-        <div className="flex items-baseline gap-2">
-          {onCollapse && (
-            <button
-              type="button"
-              onClick={onCollapse}
-              title="Hide sources  ["
-              aria-label="Hide sources"
-              aria-expanded
-              className="collapse-handle hidden lg:block"
-            >
-              ‹
-            </button>
-          )}
-          <h2 className="label">Sources</h2>
-        </div>
-        {scope.size > 0 && (
+      {/* The tab strip above owns the header row now, so this starts at the
+          drop zone. Only the scope notice remains, and only when scoping. */}
+      {scope.size > 0 && (
+        <div className="flex items-baseline justify-end border-b border-line px-4 py-2">
           <button
             type="button"
             onClick={() => onScopeChange(new Set())}
@@ -194,8 +178,8 @@ export function CorpusRail({
           >
             searching {scope.size} of {documents.length} — clear
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div
         onDragOver={(e) => {

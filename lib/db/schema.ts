@@ -143,6 +143,26 @@ CREATE TABLE IF NOT EXISTS answer_cache (
 CREATE INDEX IF NOT EXISTS answer_cache_lookup
   ON answer_cache (owner_id, mode, scope_key);
 
+-- Conversations, owned by the browser that had them.
+--
+-- Deliberately not query_log. That table records the SHAPE of a run for
+-- measurement and holds no question or answer, because it is a table nobody
+-- can see or clear and one person's questions would sit in it beside
+-- another's. This one is the reader's own history: scoped to their owner id,
+-- listed back to them, and deletable by them. The distinction that matters is
+-- not whether text is stored, it is whether the person who wrote it can see
+-- and remove it.
+CREATE TABLE IF NOT EXISTS conversations (
+  id          text PRIMARY KEY,
+  owner_id    text NOT NULL,
+  title       text NOT NULL,
+  messages    jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS conversations_owner
+  ON conversations (owner_id, updated_at DESC);
+
 -- Records the dimension the tables were actually built for.
 CREATE TABLE IF NOT EXISTS index_meta (
   key   text PRIMARY KEY,

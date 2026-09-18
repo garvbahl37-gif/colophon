@@ -114,7 +114,7 @@ async function main() {
     applied is one where the next table will silently be unreadable too.
   */
   const [{ current_user: role }] = await sql<{ current_user: string }[]>`SELECT current_user`;
-  const TABLES = ["documents", "chunks", "query_log", "answer_cache", "index_meta"];
+  const TABLES = ["documents", "chunks", "query_log", "answer_cache", "conversations", "index_meta"];
   for (const table of TABLES) {
     await sql.unsafe(`ALTER TABLE ${schema}.${table} ENABLE ROW LEVEL SECURITY`);
     await sql.unsafe(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${schema}.${table} TO "${role}"`);

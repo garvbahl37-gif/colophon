@@ -121,6 +121,15 @@ report("fail", mismatch, "the embedding column matches the model that filled it"
   `column is ${width?.w}-wide, index_meta records ${meta?.value.dimensions} from ${meta?.value.model}`,
   "run pnpm db:reset and re-ingest; the two can never be reconciled in place");
 
+/* A saved conversation with no messages is a row the reader will click into
+   and find empty -- worse than it not being listed at all. */
+const [hollow] = await sql<{ n: number }[]>`
+  SELECT count(*)::int AS n FROM conversations WHERE jsonb_array_length(messages) = 0
+`;
+report("fail", hollow.n, "every saved conversation has messages in it",
+  `${hollow.n} conversations are listed but hold nothing`,
+  "delete them; they will open empty");
+
 /* Vectors are what retrieval runs on; a null one is a passage that cannot be found. */
 const [novec] = await sql<{ n: number }[]>`
   SELECT count(*)::int AS n FROM chunks WHERE embedding IS NULL

@@ -400,13 +400,24 @@ enough to stop documents leaking between visitors and no more; anything that
 genuinely requires authentication needs Vercel Deployment Protection or a real
 identity provider in front of it.
 
-**Conversations stay in the browser.** `query_log` records the shape of a run —
-stage timings, mode, how many citations — and deliberately not the question, the
-answer or the citations. None of that is needed to measure the pipeline, and on
-a shared instance it would leave one person's questions sitting beside another's
-in a table nobody can see or clear. The thread is kept in `localStorage`, so a
-reload does not lose it and `Clear` actually deletes it. An operator who wants
-full transcripts for offline evaluation opts in with `COLOPHON_LOG_QUERIES=1`.
+**Conversations are the reader's, and they are kept.** They lived in
+`localStorage`, which was the right call when the alternative was `query_log`
+recording every question and answer in a table nobody could see or clear. It is
+the wrong call for history: site data gets cleared routinely and without
+warning, and one key could only hold the single thread it kept overwriting.
+
+They are in Postgres now, scoped to the same owner id the documents use, listed
+back in a History tab, and deletable one at a time. The distinction worth being
+precise about is not whether text is stored — it is whether the person who wrote
+it can see it, list it and remove it. `query_log` still records only the shape of
+a run: stage timings, mode, citation count, and never the question or the answer.
+An operator who wants transcripts for offline evaluation opts in with
+`COLOPHON_LOG_QUERIES=1`.
+
+Saving happens when a turn settles, not while it streams — writing mid-stream
+would store half an answer and spend a round trip per token. A reload reopens
+whatever was last being read. Still not authentication: anyone holding the
+cookie is that owner, and clearing cookies loses the history with the documents.
 
 **Database.** The app connects as a dedicated least-privilege role that owns only
 its own schema and **cannot reach `public`** — verified, not assumed. RLS is

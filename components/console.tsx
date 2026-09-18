@@ -13,14 +13,14 @@ import { Answer, GroundingBadge } from "./answer";
 import { Boot } from "./boot";
 import { Coverage } from "./coverage";
 import { CorpusRail, useCorpus, type CorpusStats, type DocumentRow } from "./corpus";
+import { HistoryRail, useConversations } from "./history";
 import { RetrievalRoundView } from "./passages";
 import { Thinking } from "./thinking";
 import { ChannelLegend, TraceStrip } from "./trace";
 
-/** Where a conversation is kept: this browser, and nothing else. */
-const THREAD_KEY = "colophon.thread";
-/** Enough to keep the thread useful without pushing at the storage quota. */
-const THREAD_LIMIT = 30;
+/** Which saved conversation this browser had open. The thread itself is
+    server-side; this is only a bookmark so a reload reopens the same one. */
+const ACTIVE_KEY = "colophon.activeConversation";
 
 interface Extracted {
   text: string;
@@ -78,6 +78,13 @@ export function Console() {
   const [scope, setScope] = useState<Set<string>>(new Set());
   const [input, setInput] = useState("");
   const [showRail, setShowRail] = useState(false);
+  /*
+    Two things belong in the left rail and only one fits: the corpus being
+    searched, and the conversations had against it. Tabs rather than stacking
+    them, because a rail split in half gives each list too few rows to scan and
+    the reader is only ever using one at a time.
+  */
+  const [railTab, setRailTab] = useState<"sources" | "history">("sources");
   const [showInstrument, setShowInstrument] = useState(false);
   /*
     Collapse is a separate idea from the narrow-viewport drawers above.
@@ -173,48 +180,119 @@ export function Console() {
   const streaming = status === "streaming" || status === "submitted";
 
   /*
-    The conversation lives in this browser and nowhere else.
+    Conversations live in the database, scoped to this browser's owner.
 
-    The server records the shape of a run for measurement -- stage timings,
-    whether grounding held -- and deliberately not the question or the answer,
-    because a shared instance with no accounts has nowhere to put a transcript
-    that the person who wrote it can see and no one else can. Keeping it here
-    means a reload no longer throws the thread away, and clearing it is the
-    reader's own decision rather than a request to a server.
-
-    Restored after mount rather than in the initial state, so the server and
-    first client render agree. Written back only when a turn is finished: no
-    point storing a half-streamed answer, and it keeps the writes to one per
-    exchange.
+    They were in localStorage, which was right when the alternative was a
+    server-side log nobody could see or clear, and wrong for history: site data
+    gets cleared routinely and without warning, and one key could only ever hold
+    the single thread it kept overwriting. The objection to the old query_log
+    was never that text was stored; it was that the person who wrote it could
+    not see, list or delete it. Here they can do all three.
   */
+  const { conversations, refresh: refreshHistory } = useConversations();
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const restored = useRef(false);
+
+  // Reopen whatever was last being read, so a reload lands where you left off.
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(THREAD_KEY);
-      if (saved) setMessages(JSON.parse(saved) as ColophonUIMessage[]);
-    } catch {
-      /* unreadable or from an older shape: start clean rather than crash */
-    }
-    restored.current = true;
+    let cancelled = false;
+    (async () => {
+      let last: string | null = null;
+      try {
+        last = localStorage.getItem(ACTIVE_KEY);
+      } catch {
+        /* private browsing: start a fresh thread rather than fail */
+      }
+      if (last) {
+        try {
+          const res = await fetch(`/api/conversations?id=${encodeURIComponent(last)}`);
+          if (res.ok && !cancelled) {
+            const data = await res.json();
+            setMessages((data.messages ?? []) as ColophonUIMessage[]);
+            setConversationId(last);
+          }
+        } catch {
+          /* unreachable history is not a reason to block the composer */
+        }
+      }
+      restored.current = true;
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [setMessages]);
 
-  useEffect(() => {
-    if (!restored.current || streaming) return;
-    try {
-      if (messages.length === 0) localStorage.removeItem(THREAD_KEY);
-      else localStorage.setItem(THREAD_KEY, JSON.stringify(messages.slice(-THREAD_LIMIT)));
-    } catch {
-      /* quota, or private browsing: the thread simply will not survive a reload */
-    }
-  }, [messages, streaming]);
+  /*
+    Saved when a turn finishes, not while it streams.
 
-  function clearThread() {
-    setMessages([]);
+    Writing mid-stream would store a half-written answer and spend a database
+    round trip per token. The id comes back from the first save, so the second
+    exchange updates the row the first one created instead of starting a new
+    thread each time.
+  */
+  useEffect(() => {
+    if (!restored.current || streaming || messages.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: conversationId, messages }),
+        });
+        if (!res.ok || cancelled) return;
+        const saved = await res.json();
+        if (saved.id && saved.id !== conversationId) {
+          setConversationId(saved.id);
+          try {
+            localStorage.setItem(ACTIVE_KEY, saved.id);
+          } catch {
+            /* the thread is still saved; only the pointer is lost */
+          }
+        }
+        void refreshHistory();
+      } catch {
+        /* an unsaved turn is recoverable; a broken chat is not */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [messages, streaming, conversationId, refreshHistory]);
+
+  function rememberActive(id: string | null) {
+    setConversationId(id);
     try {
-      localStorage.removeItem(THREAD_KEY);
+      if (id) localStorage.setItem(ACTIVE_KEY, id);
+      else localStorage.removeItem(ACTIVE_KEY);
     } catch {
-      /* nothing to remove */
+      /* nothing to remember */
     }
+  }
+
+  async function openConversation(id: string) {
+    const res = await fetch(`/api/conversations?id=${encodeURIComponent(id)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setMessages((data.messages ?? []) as ColophonUIMessage[]);
+    rememberActive(id);
+    setShowRail(false);
+  }
+
+  function newConversation() {
+    setMessages([]);
+    rememberActive(null);
+    setShowRail(false);
+    composerRef.current?.focus();
+  }
+
+  async function removeConversation(id: string) {
+    await fetch(`/api/conversations?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (id === conversationId) {
+      setMessages([]);
+      rememberActive(null);
+    }
+    void refreshHistory();
   }
 
   const threadRef = useRef<HTMLDivElement>(null);
@@ -292,14 +370,18 @@ export function Console() {
 
         <div className="flex-1" />
 
+        {/* "Clear" used to mean "destroy this thread", because there was only
+            ever one. Now that conversations are kept, the header action is to
+            start another; deleting one is done in the history list, next to the
+            thread it deletes. */}
         {messages.length > 0 && (
           <button
             type="button"
-            onClick={clearThread}
-            title="Delete this conversation from this browser"
+            onClick={newConversation}
+            title="Start a new conversation. This one stays in your history."
             className="btn btn-bare btn-sm hidden shrink-0 sm:inline-flex"
           >
-            Clear
+            New
           </button>
         )}
 
@@ -409,14 +491,59 @@ export function Console() {
                 : "hidden",
           )}
         >
-          <CorpusRail
-            onCollapse={toggleRail}
-            documents={documents}
-            scope={scope}
-            onScopeChange={setScope}
-            onChanged={refresh}
-            error={corpusError}
-          />
+          <div className="flex h-full flex-col">
+            <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+              <button
+                type="button"
+                onClick={toggleRail}
+                title="Hide panel  ["
+                aria-label="Hide panel"
+                aria-expanded
+                className="collapse-handle hidden lg:block"
+              >
+                ‹
+              </button>
+              <div role="tablist" aria-label="Left panel" className="segmented flex-1">
+                {(
+                  [
+                    ["sources", "Sources", documents.length],
+                    ["history", "History", conversations.length],
+                  ] as const
+                ).map(([value, label, count]) => (
+                  <button
+                    key={value}
+                    role="tab"
+                    aria-selected={railTab === value}
+                    onClick={() => setRailTab(value)}
+                    className="segment"
+                  >
+                    {label}
+                    {count > 0 && <span className="mono ml-1.5 text-micro opacity-60">{count}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1">
+              {railTab === "sources" ? (
+                <CorpusRail
+                  documents={documents}
+                  scope={scope}
+                  onScopeChange={setScope}
+                  onChanged={refresh}
+                  error={corpusError}
+                />
+              ) : (
+                <HistoryRail
+                  conversations={conversations}
+                  activeId={conversationId}
+                  onOpen={(id) => void openConversation(id)}
+                  onNew={newConversation}
+                  onDelete={(id) => void removeConversation(id)}
+                />
+              )}
+            </div>
+          </div>
         </aside>
 
         {/* ── Conversation ───────────────────────────────────────────────── */}

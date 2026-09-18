@@ -4,6 +4,7 @@ import {
   type UIMessageStreamWriter,
 } from "ai";
 import { nanoid } from "nanoid";
+import { backendOf } from "@/lib/ai/providers";
 import { config } from "@/lib/config";
 import { sql } from "@/lib/db/client";
 import { embedQuery, generateModel } from "@/lib/ai/models";
@@ -658,9 +659,21 @@ async function runPipeline(args: {
           fused.merged,
         );
         update({
-          detail: method.endsWith("cross-encoder")
-            ? model
-            : `fallback · ${method}`,
+          /*
+            "fallback" is reserved for actually falling back. Where the
+            deployment asks for `llm:` -- which is what production runs,
+            because a serverless runtime cannot load the native ONNX
+            libraries -- the listwise pass is the configured reranker, and
+            labelling it a fallback reads as a degraded pipeline on every
+            single query. Only fusion order, which really is the last resort,
+            keeps the word.
+          */
+          detail:
+            method.endsWith("cross-encoder")
+              ? model
+              : method === "llm-listwise" && backendOf(config.models.rerank) === "llm"
+                ? `${model} · listwise`
+                : `fallback · ${method}`,
           metrics: {
             in: fused.merged.length,
             out: candidates.length,

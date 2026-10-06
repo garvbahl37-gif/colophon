@@ -18,6 +18,43 @@ export function databaseHint(error: unknown): string {
   if (!hasDatabaseUrl) {
     return "DATABASE_URL is not set, so the app fell back to localhost. Set it to your Postgres connection string.";
   }
+  /*
+    The pooler's way of saying the project is asleep.
+
+    A Supabase free-tier project is paused after a week without activity, and
+    a paused project is removed from the pooler outright, so the connection
+    fails before it reaches Postgres with "tenant/user <role>.<ref> not found".
+    Read literally that suggests a wrong username or a deleted role, and the
+    obvious response -- rotating credentials, editing DATABASE_URL -- changes
+    nothing, because the credentials are fine. It happened on 6 October 2026
+    after eighteen idle days: the URL was 22 days old and untouched, and
+    restoring the project fixed it with no other change.
+  */
+  if (/tenant\/user .* not found/i.test(message)) {
+    return (
+      "The database is unreachable: the Supabase project looks paused " +
+      "(free-tier projects pause after a week idle). Restore it from the " +
+      "Supabase dashboard; nothing else needs to change. " +
+      `[${message}]`
+    );
+  }
+  // Node uses the same code for a hostname that does not resolve, which is a
+  // different problem -- usually a mistyped host -- and must not be reported
+  // as a paused project.
+  if (/getaddrinfo ENOTFOUND/i.test(message)) {
+    return (
+      "The database host in DATABASE_URL could not be resolved. Check the " +
+      "hostname; a paused Supabase project can also cause this. " +
+      `[${message}]`
+    );
+  }
+  if (/EMAXCONNSESSION|max clients reached/i.test(message)) {
+    return (
+      "Every database connection is in use. DATABASE_URL points at the " +
+      "session pooler; the transaction pooler on port 6543 avoids this. " +
+      `[${message}]`
+    );
+  }
   return message;
 }
 
